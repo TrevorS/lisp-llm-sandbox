@@ -1,0 +1,19 @@
+# Build artifacts
+/target
+*.o
+*.so
+*.dylib
+
+# REPL history
+.lisp_history
+
+# Dependency lock file (optional - uncomment to include)
+# Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store

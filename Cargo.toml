@@ -1,0 +1,15 @@
+[package]
+name = "lisp-llm-sandbox"
+version = "1.0.0"
+edition = "2024"
+description = "A production-ready Scheme-flavored Lisp interpreter in Rust with TCO, macros, and REPL"
+authors = ["Trevor Strieber"]
+license = "MIT"
+repository = "https://github.com/anthropics/lisp-llm-sandbox"
+keywords = ["lisp", "interpreter", "scheme", "repl", "functional"]
+categories = ["compilers", "command-line-utilities", "educational"]
+
+[dependencies]
+nom = "8"
+rustyline = "17"
+thiserror = "2"
