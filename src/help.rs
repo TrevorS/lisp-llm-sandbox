@@ -141,13 +141,15 @@ pub fn format_help_entry(entry: &HelpEntry) -> String {
 pub fn format_quick_reference() -> String {
     let mut output = String::new();
 
-    output.push_str("Available Functions (36 total)\n");
-    output.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
-
     let by_cat = all_by_category();
+    let total = by_cat.values().map(|v| v.len()).sum::<usize>();
+
+    output.push_str(&format!("Available Functions ({} total)\n", total));
+    output.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
 
     // Define category display order
     let categories = vec![
+        "Special Forms",
         "Arithmetic",
         "Comparison",
         "Logic",
@@ -692,6 +694,128 @@ pub fn populate_builtin_help() {
         ],
         related: vec!["help".to_string()],
         category: "Help system".to_string(),
+    });
+
+    // Special Forms
+    register_help(HelpEntry {
+        name: "define".to_string(),
+        signature: "(define name value)\n(define (name param1 param2 ...) body)".to_string(),
+        description: "Binds a name to a value in the current scope.\nCan define variables or functions with the shorthand syntax.".to_string(),
+        examples: vec![
+            "(define x 42)".to_string(),
+            "(define (square x) (* x x))".to_string(),
+            "(square 5) => 25".to_string(),
+        ],
+        related: vec!["let".to_string(), "lambda".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "lambda".to_string(),
+        signature: "(lambda (param1 param2 ...) body)\n(lambda (param1 param2 ...) \"docstring\" body)".to_string(),
+        description: "Creates an anonymous function that captures the current lexical environment.\nOptional docstring available via help system.".to_string(),
+        examples: vec![
+            "((lambda (x) (* x x)) 5) => 25".to_string(),
+            "(define square (lambda (x) (* x x)))".to_string(),
+            "(map (lambda (x) (+ x 1)) '(1 2 3)) => (2 3 4)".to_string(),
+        ],
+        related: vec!["define".to_string(), "let".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "if".to_string(),
+        signature: "(if condition then-expr else-expr)".to_string(),
+        description: "Conditional evaluation. Evaluates then-expr if condition is truthy, else-expr otherwise.\n#f and nil are falsy; everything else is truthy.".to_string(),
+        examples: vec![
+            "(if #t 1 2) => 1".to_string(),
+            "(if (= 5 5) \"yes\" \"no\") => \"yes\"".to_string(),
+            "(if #f 1 2) => 2".to_string(),
+        ],
+        related: vec!["begin".to_string(), "and".to_string(), "or".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "begin".to_string(),
+        signature: "(begin expr1 expr2 ...)".to_string(),
+        description: "Evaluates expressions in sequence and returns the value of the last one.\nUsed to group multiple expressions where only one is expected.".to_string(),
+        examples: vec![
+            "(begin (define x 1) (+ x 1)) => 2".to_string(),
+            "(begin 1 2 3) => 3".to_string(),
+        ],
+        related: vec!["if".to_string(), "let".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "let".to_string(),
+        signature: "(let ((var1 val1) (var2 val2) ...) body)".to_string(),
+        description: "Creates local bindings for expressions.\nVariables are bound simultaneously (all right-side expressions use outer scope).\nBody has access to all bindings.".to_string(),
+        examples: vec![
+            "(let ((x 1) (y 2)) (+ x y)) => 3".to_string(),
+            "(let ((x 5)) (* x x)) => 25".to_string(),
+        ],
+        related: vec!["define".to_string(), "lambda".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "quote".to_string(),
+        signature: "'expr or (quote expr)".to_string(),
+        description: "Returns the expression unevaluated as a data structure.\nUseful for working with code as data and creating lists.".to_string(),
+        examples: vec![
+            "'(1 2 3) => (1 2 3)".to_string(),
+            "'hello => hello".to_string(),
+            "(quote (+ 1 2)) => (+ 1 2)".to_string(),
+        ],
+        related: vec!["quasiquote".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "quasiquote".to_string(),
+        signature: "`expr or (quasiquote expr)".to_string(),
+        description: "Like quote, but allows selective evaluation using unquote (,) and unquote-splicing (,@).\nPrimarily used for writing macros.".to_string(),
+        examples: vec![
+            "`(1 2 3) => (1 2 3)".to_string(),
+            "`(1 ,(+ 1 1) 3) => (1 2 3)".to_string(),
+        ],
+        related: vec!["quote".to_string(), "unquote".to_string(), "defmacro".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "unquote".to_string(),
+        signature: ",expr (inside a quasiquote)".to_string(),
+        description: "Evaluates an expression inside a quasiquote context.\nOnly meaningful within a quasiquote.".to_string(),
+        examples: vec![
+            "`(1 ,(+ 1 1) 3) => (1 2 3)".to_string(),
+        ],
+        related: vec!["quasiquote".to_string(), "unquote-splicing".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "unquote-splicing".to_string(),
+        signature: ",@expr (inside a quasiquote)".to_string(),
+        description: "Evaluates an expression and splices its elements into the surrounding list.\nOnly meaningful within a quasiquote context.".to_string(),
+        examples: vec![
+            "`(1 ,@'(2 3) 4) => (1 2 3 4)".to_string(),
+        ],
+        related: vec!["quasiquote".to_string(), "unquote".to_string()],
+        category: "Special Forms".to_string(),
+    });
+
+    register_help(HelpEntry {
+        name: "defmacro".to_string(),
+        signature: "(defmacro (name param1 param2 ...) body)".to_string(),
+        description: "Defines a macro that transforms code at compile-time.\nMacros receive unevaluated arguments and return code to be evaluated.\nUse with quasiquote and unquote for code generation.".to_string(),
+        examples: vec![
+            "(defmacro (unless cond body) `(if (not ,cond) ,body))".to_string(),
+        ],
+        related: vec!["lambda".to_string(), "quasiquote".to_string()],
+        category: "Special Forms".to_string(),
     });
 }
 
