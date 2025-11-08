@@ -11,12 +11,11 @@ mod sandbox;
 mod tools;
 mod value;
 
-use builtins::register_builtins;
+use builtins::{register_builtins, set_sandbox_storage};
 use clap::Parser;
 use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE};
 use env::Environment;
 use eval::eval_with_macros;
-use help::populate_builtin_help;
 use highlighter::LispHelper;
 use macros::MacroRegistry;
 use parser::parse;
@@ -25,7 +24,6 @@ use rustyline::{Config, Editor};
 use sandbox::Sandbox;
 use std::path::PathBuf;
 use std::rc::Rc;
-use value::Value;
 
 /// Lisp interpreter with sandboxed I/O capabilities
 #[derive(Parser, Debug)]
@@ -63,23 +61,6 @@ struct CliArgs {
     no_stdlib: bool,
 }
 
-// ============================================================================
-// Sandbox Storage for I/O Built-in Functions
-// ============================================================================
-
-use std::cell::RefCell;
-
-thread_local! {
-    static SANDBOX: RefCell<Option<Sandbox>> = const { RefCell::new(None) };
-}
-
-/// Initialize the sandbox for I/O built-in functions
-fn set_sandbox_storage(sandbox: Sandbox) {
-    SANDBOX.with(|s| {
-        *s.borrow_mut() = Some(sandbox);
-    });
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse CLI arguments
     let args = CliArgs::parse();
@@ -96,10 +77,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Environment::new();
     let mut macro_reg = MacroRegistry::new();
     register_builtins(env.clone());
-    register_io_builtins(env.clone());
-
-    // Initialize help system
-    populate_builtin_help();
 
     // Conditionally load standard library
     if !args.no_stdlib {
@@ -227,205 +204,6 @@ fn build_net_config(args: &CliArgs) -> NetConfig {
         enabled: args.allow_network,
         allowed_addresses: args.net_addresses.clone(),
     }
-}
-
-// ============================================================================
-// I/O Built-in Function Registration and Implementations
-// ============================================================================
-
-/// Register all I/O built-in functions in the global environment
-fn register_io_builtins(env: Rc<Environment>) {
-    // Filesystem I/O
-    env.define("read-file".to_string(), Value::BuiltIn(builtin_read_file));
-    env.define("write-file".to_string(), Value::BuiltIn(builtin_write_file));
-    env.define(
-        "file-exists?".to_string(),
-        Value::BuiltIn(builtin_file_exists),
-    );
-    env.define("file-size".to_string(), Value::BuiltIn(builtin_file_size));
-    env.define("list-files".to_string(), Value::BuiltIn(builtin_list_files));
-
-    // Network I/O
-    env.define("http-get".to_string(), Value::BuiltIn(builtin_http_get));
-    env.define("http-post".to_string(), Value::BuiltIn(builtin_http_post));
-}
-
-/// Read file contents: (read-file "path") => String
-fn builtin_read_file(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 1 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let path = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .read_file(path)
-            .map(Value::String)
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// Write file contents: (write-file "path" "contents") => #t
-fn builtin_write_file(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 2 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let path = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    let contents = match &args[1] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .write_file(path, contents)
-            .map(|_| Value::Bool(true))
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// Check if file exists: (file-exists? "path") => Bool
-fn builtin_file_exists(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 1 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let path = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .file_exists(path)
-            .map(Value::Bool)
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// Get file size in bytes: (file-size "path") => Number
-fn builtin_file_size(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 1 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let path = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .file_size(path)
-            .map(|size| Value::Number(size as f64))
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// List files in directory: (list-files "dir") => List of strings
-fn builtin_list_files(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 1 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let dir = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .list_files(dir)
-            .map(|files| Value::List(files.into_iter().map(Value::String).collect::<Vec<_>>()))
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// HTTP GET request: (http-get "url") => String (response body)
-fn builtin_http_get(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 1 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let url = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .http_get(url)
-            .map(Value::String)
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
-}
-
-/// HTTP POST request: (http-post "url" "body") => String (response body)
-fn builtin_http_post(args: &[value::Value]) -> Result<value::Value, error::EvalError> {
-    if args.len() != 2 {
-        return Err(error::EvalError::ArityMismatch);
-    }
-
-    let url = match &args[0] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    let body = match &args[1] {
-        Value::String(s) => s,
-        _ => return Err(error::EvalError::TypeError),
-    };
-
-    SANDBOX.with(|s| {
-        let sandbox_ref = s.borrow();
-        let sandbox = sandbox_ref
-            .as_ref()
-            .ok_or_else(|| error::EvalError::IoError("Sandbox not initialized".to_string()))?;
-
-        sandbox
-            .http_post(url, body)
-            .map(Value::String)
-            .map_err(|e| error::EvalError::IoError(e.to_string()))
-    })
 }
 
 /// Execute a Lisp script file

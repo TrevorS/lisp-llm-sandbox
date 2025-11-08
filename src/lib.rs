@@ -1,11 +1,13 @@
 // ABOUTME: Library module exposing internal components for testing
 
 pub mod builtins;
+pub mod config;
 pub mod env;
 pub mod error;
 pub mod eval;
 pub mod help;
 pub mod macros;
 pub mod parser;
+pub mod sandbox;
 pub mod tools;
 pub mod value;

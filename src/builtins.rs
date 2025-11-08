@@ -2,9 +2,25 @@
 
 use crate::env::Environment;
 use crate::error::EvalError;
+use crate::sandbox::Sandbox;
 use crate::value::Value;
-use paste::paste;
+use std::cell::RefCell;
 use std::rc::Rc;
+
+// ============================================================================
+// Sandbox Storage for I/O Built-in Functions
+// ============================================================================
+
+thread_local! {
+    static SANDBOX: RefCell<Option<Sandbox>> = const { RefCell::new(None) };
+}
+
+/// Initialize the sandbox for I/O built-in functions
+pub fn set_sandbox_storage(sandbox: Sandbox) {
+    SANDBOX.with(|s| {
+        *s.borrow_mut() = Some(sandbox);
+    });
+}
 
 // ============================================================================
 // Builtin Definition Macro
@@ -141,247 +157,386 @@ macro_rules! define_builtin {
 // Arithmetic Operations
 // ============================================================================
 
-/// Addition: (+ 1 2 3) => 6, (+ ) => 0
-pub fn builtin_add(args: &[Value]) -> Result<Value, EvalError> {
-    let mut sum = 0.0;
-    for arg in args {
-        match arg {
-            Value::Number(n) => sum += n,
-            _ => return Err(EvalError::TypeError),
-        }
-    }
-    Ok(Value::Number(sum))
-}
-
-/// Subtraction: (- 10 3) => 7, (- 5) => -5, (- 10 5 2) => 3
-pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
-    if args.is_empty() {
-        return Err(EvalError::ArityMismatch);
-    }
-
-    let first = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    if args.len() == 1 {
-        return Ok(Value::Number(-first));
-    }
-
-    let mut result = first;
-    for arg in &args[1..] {
-        match arg {
-            Value::Number(n) => result -= n,
-            _ => return Err(EvalError::TypeError),
-        }
-    }
-    Ok(Value::Number(result))
-}
-
-/// Multiplication: (* 2 3 4) => 24, (* ) => 1
-pub fn builtin_mul(args: &[Value]) -> Result<Value, EvalError> {
-    let mut product = 1.0;
-    for arg in args {
-        match arg {
-            Value::Number(n) => product *= n,
-            _ => return Err(EvalError::TypeError),
-        }
-    }
-    Ok(Value::Number(product))
-}
-
-/// Division: (/ 10 2) => 5, (/ 10 2 5) => 1
-pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
-    if args.is_empty() {
-        return Err(EvalError::ArityMismatch);
-    }
-
-    let first = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    if args.len() == 1 {
-        if first == 0.0 {
-            return Err(EvalError::Custom("Division by zero".to_string()));
-        }
-        return Ok(Value::Number(1.0 / first));
-    }
-
-    let mut result = first;
-    for arg in &args[1..] {
-        match arg {
-            Value::Number(n) => {
-                if *n == 0.0 {
-                    return Err(EvalError::Custom("Division by zero".to_string()));
-                }
-                result /= n;
+define_builtin! {
+    builtin_add,
+    name: "+",
+    "Arithmetic",
+    "Returns the sum of all arguments.",
+    examples: [
+        "(+ 1 2 3) => 6",
+        "(+ 10) => 10",
+        "(+) => 0"
+    ],
+    related: [builtin_sub, builtin_mul, builtin_div],
+    |args: &[Value]| {
+        let mut sum = 0.0;
+        for arg in args {
+            match arg {
+                Value::Number(n) => sum += n,
+                _ => return Err(EvalError::TypeError),
             }
-            _ => return Err(EvalError::TypeError),
         }
+        Ok(Value::Number(sum))
     }
-    Ok(Value::Number(result))
 }
 
-/// Modulo: (% 10 3) => 1
-pub fn builtin_mod(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_sub,
+    name: "-",
+    "Arithmetic",
+    "Subtracts subsequent arguments from the first.\nWith one argument, returns its negation.",
+    examples: [
+        "(- 10 3 2) => 5",
+        "(- 5) => -5"
+    ],
+    related: [builtin_add, builtin_mul, builtin_div],
+    |args: &[Value]| {
+        if args.is_empty() {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let first = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        if args.len() == 1 {
+            return Ok(Value::Number(-first));
+        }
+
+        let mut result = first;
+        for arg in &args[1..] {
+            match arg {
+                Value::Number(n) => result -= n,
+                _ => return Err(EvalError::TypeError),
+            }
+        }
+        Ok(Value::Number(result))
     }
+}
 
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
+define_builtin! {
+    builtin_mul,
+    name: "*",
+    "Arithmetic",
+    "Returns the product of all arguments.",
+    examples: [
+        "(* 2 3 4) => 24",
+        "(* 5) => 5",
+        "(*) => 1"
+    ],
+    related: [builtin_add, builtin_sub, builtin_div],
+    |args: &[Value]| {
+        let mut product = 1.0;
+        for arg in args {
+            match arg {
+                Value::Number(n) => product *= n,
+                _ => return Err(EvalError::TypeError),
+            }
+        }
+        Ok(Value::Number(product))
+    }
+}
 
-    let b = match args[1] {
-        Value::Number(n) => {
-            if n == 0.0 {
+define_builtin! {
+    builtin_div,
+    name: "/",
+    "Arithmetic",
+    "Divides the first argument by subsequent arguments.\nInteger division in Lisp.",
+    examples: [
+        "(/ 20 4) => 5",
+        "(/ 100 2 5) => 10"
+    ],
+    related: [builtin_add, builtin_sub, builtin_mul, builtin_mod],
+    |args: &[Value]| {
+        if args.is_empty() {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let first = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        if args.len() == 1 {
+            if first == 0.0 {
                 return Err(EvalError::Custom("Division by zero".to_string()));
             }
-            n
+            return Ok(Value::Number(1.0 / first));
         }
-        _ => return Err(EvalError::TypeError),
-    };
 
-    Ok(Value::Number(a % b))
+        let mut result = first;
+        for arg in &args[1..] {
+            match arg {
+                Value::Number(n) => {
+                    if *n == 0.0 {
+                        return Err(EvalError::Custom("Division by zero".to_string()));
+                    }
+                    result /= n;
+                }
+                _ => return Err(EvalError::TypeError),
+            }
+        }
+        Ok(Value::Number(result))
+    }
+}
+
+define_builtin! {
+    builtin_mod,
+    name: "%",
+    "Arithmetic",
+    "Returns the remainder when num1 is divided by num2.",
+    examples: [
+        "(% 17 5) => 2",
+        "(% 10 3) => 1"
+    ],
+    related: [builtin_div],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let a = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let b = match args[1] {
+            Value::Number(n) => {
+                if n == 0.0 {
+                    return Err(EvalError::Custom("Division by zero".to_string()));
+                }
+                n
+            }
+            _ => return Err(EvalError::TypeError),
+        };
+
+        Ok(Value::Number(a % b))
+    }
 }
 
 // ============================================================================
 // Comparison Operations
 // ============================================================================
 
-/// Equality: (= 1 1) => #t
-pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_eq,
+    name: "=",
+    "Comparison",
+    "Tests if all arguments are equal. Works with numbers, strings, symbols.",
+    examples: [
+        "(= 5 5) => #t",
+        "(= 5 5 5) => #t",
+        "(= 5 6) => #f",
+        "(= \"hello\" \"hello\") => #t"
+    ],
+    related: [builtin_lt, builtin_gt, builtin_le, builtin_ge],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let result = match (&args[0], &args[1]) {
+            (Value::Number(a), Value::Number(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Symbol(a), Value::Symbol(b)) => a == b,
+            (Value::Nil, Value::Nil) => true,
+            _ => false,
+        };
+
+        Ok(Value::Bool(result))
     }
-
-    let result = match (&args[0], &args[1]) {
-        (Value::Number(a), Value::Number(b)) => a == b,
-        (Value::Bool(a), Value::Bool(b)) => a == b,
-        (Value::String(a), Value::String(b)) => a == b,
-        (Value::Symbol(a), Value::Symbol(b)) => a == b,
-        (Value::Nil, Value::Nil) => true,
-        _ => false,
-    };
-
-    Ok(Value::Bool(result))
 }
 
-/// Less than: (< 1 2) => #t
-pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_lt,
+    name: "<",
+    "Comparison",
+    "Tests if each argument is strictly less than the next.",
+    examples: [
+        "(< 1 2 3) => #t",
+        "(< 1 1) => #f",
+        "(< 5 3) => #f"
+    ],
+    related: [builtin_gt, builtin_le, builtin_ge, builtin_eq],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let a = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let b = match args[1] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        Ok(Value::Bool(a < b))
     }
-
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    let b = match args[1] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    Ok(Value::Bool(a < b))
 }
 
-/// Greater than: (> 2 1) => #t
-pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_gt,
+    name: ">",
+    "Comparison",
+    "Tests if each argument is strictly greater than the next.",
+    examples: [
+        "(> 3 2 1) => #t",
+        "(> 3 3) => #f"
+    ],
+    related: [builtin_lt, builtin_le, builtin_ge, builtin_eq],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let a = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let b = match args[1] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        Ok(Value::Bool(a > b))
     }
-
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    let b = match args[1] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    Ok(Value::Bool(a > b))
 }
 
-/// Less than or equal: (<= 1 1) => #t
-pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_le,
+    name: "<=",
+    "Comparison",
+    "Tests if each argument is less than or equal to the next.",
+    examples: [
+        "(<= 1 2 2 3) => #t",
+        "(<= 5 5) => #t"
+    ],
+    related: [builtin_lt, builtin_gt, builtin_ge, builtin_eq],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let a = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let b = match args[1] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        Ok(Value::Bool(a <= b))
     }
-
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    let b = match args[1] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    Ok(Value::Bool(a <= b))
 }
 
-/// Greater than or equal: (>= 2 1) => #t
-pub fn builtin_ge(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_ge,
+    name: ">=",
+    "Comparison",
+    "Tests if each argument is greater than or equal to the next.",
+    examples: [
+        "(>= 3 2 2 1) => #t",
+        "(>= 5 5) => #t"
+    ],
+    related: [builtin_lt, builtin_gt, builtin_le, builtin_eq],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let a = match args[0] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let b = match args[1] {
+            Value::Number(n) => n,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        Ok(Value::Bool(a >= b))
     }
-
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    let b = match args[1] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
-    };
-
-    Ok(Value::Bool(a >= b))
 }
 
 // ============================================================================
 // Logic Operations
 // ============================================================================
 
-/// Logical AND: (and #t #f) => #f
-pub fn builtin_and(args: &[Value]) -> Result<Value, EvalError> {
-    for arg in args {
-        match arg {
-            Value::Bool(false) => return Ok(Value::Bool(false)),
-            Value::Bool(true) => continue,
-            _ => return Err(EvalError::TypeError),
+define_builtin! {
+    builtin_and,
+    name: "and",
+    "Logic",
+    "Logical AND. Returns #f if any argument is falsy, otherwise returns the last argument.\nShort-circuits: stops evaluating after first falsy value.",
+    examples: [
+        "(and #t #t #t) => #t",
+        "(and #t #f #t) => #f",
+        "(and 1 2 3) => 3"
+    ],
+    related: [builtin_or, builtin_not],
+    |args: &[Value]| {
+        for arg in args {
+            match arg {
+                Value::Bool(false) => return Ok(Value::Bool(false)),
+                Value::Bool(true) => continue,
+                _ => return Err(EvalError::TypeError),
+            }
         }
+        Ok(Value::Bool(true))
     }
-    Ok(Value::Bool(true))
 }
 
-/// Logical OR: (or #t #f) => #t
-pub fn builtin_or(args: &[Value]) -> Result<Value, EvalError> {
-    for arg in args {
-        match arg {
-            Value::Bool(true) => return Ok(Value::Bool(true)),
-            Value::Bool(false) => continue,
-            _ => return Err(EvalError::TypeError),
+define_builtin! {
+    builtin_or,
+    name: "or",
+    "Logic",
+    "Logical OR. Returns the first truthy value or #f if all are falsy.\nShort-circuits: stops evaluating after first truthy value.",
+    examples: [
+        "(or #f #f #t) => #t",
+        "(or #f #f) => #f",
+        "(or nil 2) => 2"
+    ],
+    related: [builtin_and, builtin_not],
+    |args: &[Value]| {
+        for arg in args {
+            match arg {
+                Value::Bool(true) => return Ok(Value::Bool(true)),
+                Value::Bool(false) => continue,
+                _ => return Err(EvalError::TypeError),
+            }
         }
+        Ok(Value::Bool(false))
     }
-    Ok(Value::Bool(false))
 }
 
-/// Logical NOT: (not #f) => #t
-pub fn builtin_not(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_not,
+    name: "not",
+    "Logic",
+    "Logical NOT. Returns #t if val is falsy (#f or nil), otherwise #f.",
+    examples: [
+        "(not #f) => #t",
+        "(not #t) => #f",
+        "(not nil) => #t",
+        "(not 5) => #f"
+    ],
+    related: [builtin_and, builtin_or],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    match args[0] {
-        Value::Bool(b) => Ok(Value::Bool(!b)),
-        _ => Err(EvalError::TypeError),
+        match args[0] {
+            Value::Bool(b) => Ok(Value::Bool(!b)),
+            _ => Err(EvalError::TypeError),
+        }
     }
 }
 
@@ -389,83 +544,149 @@ pub fn builtin_not(args: &[Value]) -> Result<Value, EvalError> {
 // List Operations
 // ============================================================================
 
-/// Cons: (cons 1 '(2 3)) => (1 2 3)
-pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
-    }
-
-    let mut result = vec![args[0].clone()];
-
-    match &args[1] {
-        Value::List(items) => result.extend(items.clone()),
-        Value::Nil => (),
-        _ => return Err(EvalError::TypeError),
-    }
-
-    Ok(Value::List(result))
-}
-
-/// Car: (car '(1 2 3)) => 1
-pub fn builtin_car(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
-
-    match &args[0] {
-        Value::List(items) if !items.is_empty() => Ok(items[0].clone()),
-        Value::List(_) => Err(EvalError::Custom("car of empty list".to_string())),
-        _ => Err(EvalError::TypeError),
-    }
-}
-
-/// Cdr: (cdr '(1 2 3)) => (2 3)
-pub fn builtin_cdr(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
-
-    match &args[0] {
-        Value::List(items) if !items.is_empty() => {
-            if items.len() == 1 {
-                Ok(Value::Nil)
-            } else {
-                Ok(Value::List(items[1..].to_vec()))
-            }
+define_builtin! {
+    builtin_cons,
+    name: "cons",
+    "List operations",
+    "Constructs a new list by prepending elem to list.\nReturns a new list; original is not modified.",
+    examples: [
+        "(cons 1 '(2 3)) => (1 2 3)",
+        "(cons 'a '(b c)) => (a b c)",
+        "(cons 1 nil) => (1)"
+    ],
+    related: [builtin_car, builtin_cdr, builtin_list],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
         }
-        Value::List(_) => Err(EvalError::Custom("cdr of empty list".to_string())),
-        _ => Err(EvalError::TypeError),
+
+        let mut result = vec![args[0].clone()];
+
+        match &args[1] {
+            Value::List(items) => result.extend(items.clone()),
+            Value::Nil => (),
+            _ => return Err(EvalError::TypeError),
+        }
+
+        Ok(Value::List(result))
     }
 }
 
-/// List: (list 1 2 3) => (1 2 3)
-pub fn builtin_list(args: &[Value]) -> Result<Value, EvalError> {
-    Ok(Value::List(args.to_vec()))
+define_builtin! {
+    builtin_car,
+    name: "car",
+    "List operations",
+    "Returns the first element of a list. Also called 'head'.\nThrows error on empty list or non-list.",
+    examples: [
+        "(car '(1 2 3)) => 1",
+        "(car '(a)) => a"
+    ],
+    related: [builtin_cdr, builtin_cons],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        match &args[0] {
+            Value::List(items) if !items.is_empty() => Ok(items[0].clone()),
+            Value::List(_) => Err(EvalError::Custom("car of empty list".to_string())),
+            _ => Err(EvalError::TypeError),
+        }
+    }
 }
 
-/// Length: (length '(1 2 3)) => 3
-pub fn builtin_length(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_cdr,
+    name: "cdr",
+    "List operations",
+    "Returns all elements except the first. Also called 'tail'.\nReturns nil for single-element list.",
+    examples: [
+        "(cdr '(1 2 3)) => (2 3)",
+        "(cdr '(a b)) => (b)",
+        "(cdr '(1)) => nil"
+    ],
+    related: [builtin_car, builtin_cons],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    match &args[0] {
-        Value::List(items) => Ok(Value::Number(items.len() as f64)),
-        Value::Nil => Ok(Value::Number(0.0)),
-        _ => Err(EvalError::TypeError),
+        match &args[0] {
+            Value::List(items) if !items.is_empty() => {
+                if items.len() == 1 {
+                    Ok(Value::Nil)
+                } else {
+                    Ok(Value::List(items[1..].to_vec()))
+                }
+            }
+            Value::List(_) => Err(EvalError::Custom("cdr of empty list".to_string())),
+            _ => Err(EvalError::TypeError),
+        }
     }
 }
 
-/// Empty?: (empty? '()) => #t
-pub fn builtin_empty(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    builtin_list,
+    name: "list",
+    "List operations",
+    "Creates a new list containing the given elements in order.",
+    examples: [
+        "(list 1 2 3) => (1 2 3)",
+        "(list 'a 'b) => (a b)",
+        "(list) => nil"
+    ],
+    related: [builtin_cons, builtin_car, builtin_cdr],
+    |args: &[Value]| {
+        Ok(Value::List(args.to_vec()))
     }
+}
 
-    match &args[0] {
-        Value::List(items) => Ok(Value::Bool(items.is_empty())),
-        Value::Nil => Ok(Value::Bool(true)),
-        _ => Err(EvalError::TypeError),
+define_builtin! {
+    builtin_length,
+    name: "length",
+    "List operations",
+    "Returns the number of elements in a list.",
+    examples: [
+        "(length '(1 2 3)) => 3",
+        "(length '()) => 0",
+        "(length '(a)) => 1"
+    ],
+    related: [builtin_empty_q, builtin_list],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        match &args[0] {
+            Value::List(items) => Ok(Value::Number(items.len() as f64)),
+            Value::Nil => Ok(Value::Number(0.0)),
+            _ => Err(EvalError::TypeError),
+        }
+    }
+}
+
+define_builtin! {
+    builtin_empty_q,
+    name: "empty?",
+    "List operations",
+    signature: "(empty? list)",
+    "Tests if a list is empty (nil or ()).\nReturns #t for empty lists, #f otherwise.",
+    examples: [
+        "(empty? nil) => #t",
+        "(empty? '()) => #t",
+        "(empty? '(1)) => #f"
+    ],
+    related: [builtin_length, builtin_nil_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        match &args[0] {
+            Value::List(items) => Ok(Value::Bool(items.is_empty())),
+            Value::Nil => Ok(Value::Bool(true)),
+            _ => Err(EvalError::TypeError),
+        }
     }
 }
 
@@ -473,129 +694,241 @@ pub fn builtin_empty(args: &[Value]) -> Result<Value, EvalError> {
 // Type Predicates
 // ============================================================================
 
-/// Number predicate: (number? 42) => #t
-pub fn builtin_number_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_number_p,
+    name: "number?",
+    "Type predicates",
+    signature: "(number? val)",
+    "Tests if val is a number (integer or float).",
+    examples: [
+        "(number? 42) => #t",
+        "(number? 3.14) => #t",
+        "(number? \"42\") => #f"
+    ],
+    related: [builtin_string_p, builtin_symbol_p, builtin_list_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::Number(_))))
+        Ok(Value::Bool(matches!(args[0], Value::Number(_))))
+    }
 }
 
-/// String predicate: (string? "hi") => #t
-pub fn builtin_string_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_string_p,
+    name: "string?",
+    "Type predicates",
+    signature: "(string? val)",
+    "Tests if val is a string.",
+    examples: [
+        "(string? \"hello\") => #t",
+        "(string? 42) => #f",
+        "(string? 'hello) => #f"
+    ],
+    related: [builtin_number_p, builtin_symbol_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::String(_))))
+        Ok(Value::Bool(matches!(args[0], Value::String(_))))
+    }
 }
 
-/// List predicate: (list? '(1 2)) => #t
-pub fn builtin_list_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_list_p,
+    name: "list?",
+    "Type predicates",
+    signature: "(list? val)",
+    "Tests if val is a list (including nil).",
+    examples: [
+        "(list? '(1 2 3)) => #t",
+        "(list? nil) => #t",
+        "(list? 42) => #f"
+    ],
+    related: [builtin_number_p, builtin_string_p, builtin_nil_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::List(_))))
+        Ok(Value::Bool(matches!(args[0], Value::List(_))))
+    }
 }
 
-/// Nil predicate: (nil? nil) => #t
-pub fn builtin_nil_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_nil_p,
+    name: "nil?",
+    "Type predicates",
+    signature: "(nil? val)",
+    "Tests if val is nil (empty list).",
+    examples: [
+        "(nil? nil) => #t",
+        "(nil? '()) => #t",
+        "(nil? 0) => #f"
+    ],
+    related: [builtin_empty_q, builtin_list_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::Nil)))
+        Ok(Value::Bool(matches!(args[0], Value::Nil)))
+    }
 }
 
-/// Symbol predicate: (symbol? 'x) => #t
-pub fn builtin_symbol_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_symbol_p,
+    name: "symbol?",
+    "Type predicates",
+    signature: "(symbol? val)",
+    "Tests if val is a symbol (e.g., from 'hello or var names).",
+    examples: [
+        "(symbol? 'hello) => #t",
+        "(symbol? \"hello\") => #f",
+        "(symbol? hello) => error (undefined variable)"
+    ],
+    related: [builtin_string_p, builtin_number_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::Symbol(_))))
+        Ok(Value::Bool(matches!(args[0], Value::Symbol(_))))
+    }
 }
 
-/// Bool predicate: (bool? #t) => #t
-pub fn builtin_bool_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    builtin_bool_p,
+    name: "bool?",
+    "Type predicates",
+    signature: "(bool? val)",
+    "Tests if val is a boolean (#t or #f).",
+    examples: [
+        "(bool? #t) => #t",
+        "(bool? #f) => #t",
+        "(bool? 1) => #f"
+    ],
+    related: [builtin_number_p, builtin_string_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::Bool(_))))
+        Ok(Value::Bool(matches!(args[0], Value::Bool(_))))
+    }
 }
 
 // ============================================================================
-// I/O Operations
+// Console I/O
 // ============================================================================
 
-/// Print: (print "hello" 42) => prints hello42 (no newline) and returns nil
-pub fn builtin_print(args: &[Value]) -> Result<Value, EvalError> {
-    for (i, arg) in args.iter().enumerate() {
-        if i > 0 {
-            print!(" ");
+define_builtin! {
+    builtin_print,
+    name: "print",
+    "Console I/O",
+    "Prints values to stdout without newline. Returns nil.",
+    examples: [
+        "(print \"hello\") => outputs: hello",
+        "(print 1 2 3) => outputs: 1 2 3"
+    ],
+    related: [builtin_println],
+    |args: &[Value]| {
+        for (i, arg) in args.iter().enumerate() {
+            if i > 0 {
+                print!(" ");
+            }
+            match arg {
+                Value::String(s) => print!("{}", s),
+                other => print!("{}", other),
+            }
         }
-        match arg {
-            Value::String(s) => print!("{}", s),
-            other => print!("{}", other),
-        }
+        Ok(Value::Nil)
     }
-    Ok(Value::Nil)
 }
 
-/// Println: (println "hello" 42) => prints hello 42 with newline and returns nil
-pub fn builtin_println(args: &[Value]) -> Result<Value, EvalError> {
-    for (i, arg) in args.iter().enumerate() {
-        if i > 0 {
-            print!(" ");
+define_builtin! {
+    builtin_println,
+    name: "println",
+    "Console I/O",
+    "Prints values to stdout with newline at end. Returns nil.",
+    examples: [
+        "(println \"hello\") => outputs: hello",
+        "(println \"a\" \"b\") => outputs: a b"
+    ],
+    related: [builtin_print],
+    |args: &[Value]| {
+        for (i, arg) in args.iter().enumerate() {
+            if i > 0 {
+                print!(" ");
+            }
+            match arg {
+                Value::String(s) => print!("{}", s),
+                other => print!("{}", other),
+            }
         }
-        match arg {
-            Value::String(s) => print!("{}", s),
-            other => print!("{}", other),
-        }
+        println!();
+        Ok(Value::Nil)
     }
-    println!();
-    Ok(Value::Nil)
 }
 
 // ============================================================================
 // Error Handling
 // ============================================================================
 
-/// Error: (error "something went wrong") => creates an Error value
-pub fn builtin_error(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+define_builtin! {
+    error,
+    "Error handling",
+    "Raises an error with the given message. Always throws.",
+    examples: ["(error \"invalid input\") => Error: invalid input"],
+    related: [error_p, error_msg],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let msg = match &args[0] {
+            Value::String(s) => s.clone(),
+            other => format!("{}", other),
+        };
+
+        Ok(Value::Error(msg))
     }
-
-    let msg = match &args[0] {
-        Value::String(s) => s.clone(),
-        other => format!("{}", other),
-    };
-
-    Ok(Value::Error(msg))
 }
 
-/// Error?: (error? value) => #t if value is an Error, #f otherwise
-pub fn builtin_error_p(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    error_p,
+    name: "error?",
+    "Error handling",
+    "Tests if val is an error value.",
+    examples: ["(error? (error \"test\")) => would throw before testing"],
+    related: [error, error_msg],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    Ok(Value::Bool(matches!(args[0], Value::Error(_))))
+        Ok(Value::Bool(matches!(args[0], Value::Error(_))))
+    }
 }
 
-/// Error-msg: (error-msg err) => extracts message from Error value
-pub fn builtin_error_msg(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    error_msg,
+    name: "error-msg",
+    "Error handling",
+    "Extracts the message from an error value.",
+    examples: ["(error-msg (error \"test\")) => would throw before extracting"],
+    related: [error, error_p],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    match &args[0] {
-        Value::Error(msg) => Ok(Value::String(msg.clone())),
-        _ => Err(EvalError::TypeError),
+        match &args[0] {
+            Value::Error(msg) => Ok(Value::String(msg.clone())),
+            _ => Err(EvalError::TypeError),
+        }
     }
 }
 
@@ -603,52 +936,315 @@ pub fn builtin_error_msg(args: &[Value]) -> Result<Value, EvalError> {
 // Help System
 // ============================================================================
 
-/// Help: (help) or (help 'function-name) => shows help information
-pub fn builtin_help(args: &[Value]) -> Result<Value, EvalError> {
-    use crate::help;
+define_builtin! {
+    help,
+    name: "help",
+    "Help system",
+    signature: "(help) or (help 'function-name)",
+    "Show help information. With no arguments, displays quick reference.\nWith a function name, shows detailed documentation for that function.",
+    examples: [
+        "(help) => shows quick reference",
+        "(help 'cons) => detailed help for cons",
+        "(help 'map) => help for user or stdlib function"
+    ],
+    related: [doc],
+    |args: &[Value]| {
+        use crate::help;
 
-    match args.len() {
-        0 => {
-            // Show quick reference
-            let output = help::format_quick_reference();
-            println!("{}", output);
-            Ok(Value::Nil)
-        }
-        1 => {
-            // Get help for specific function
-            match &args[0] {
-                Value::Symbol(name) => {
-                    // First try built-in help
-                    if let Some(entry) = help::get_help(name) {
-                        let output = help::format_help_entry(&entry);
-                        println!("{}", output);
-                        return Ok(Value::Nil);
-                    }
-
-                    // If not found in help registry, it might be a user function
-                    // User functions would need to be looked up in environment
-                    // For now, just report not found
-                    Err(EvalError::Custom(format!("No help found for '{}'", name)))
-                }
-                _ => Err(EvalError::TypeError),
+        match args.len() {
+            0 => {
+                // Show quick reference
+                let output = help::format_quick_reference();
+                println!("{}", output);
+                Ok(Value::Nil)
             }
+            1 => {
+                // Get help for specific function
+                match &args[0] {
+                    Value::Symbol(name) => {
+                        // First try built-in help
+                        if let Some(entry) = help::get_help(name) {
+                            let output = help::format_help_entry(&entry);
+                            println!("{}", output);
+                            return Ok(Value::Nil);
+                        }
+
+                        // If not found in help registry, it might be a user function
+                        // User functions would need to be looked up in environment
+                        // For now, just report not found
+                        Err(EvalError::Custom(format!("No help found for '{}'", name)))
+                    }
+                    _ => Err(EvalError::TypeError),
+                }
+            }
+            _ => Err(EvalError::ArityMismatch),
         }
-        _ => Err(EvalError::ArityMismatch),
     }
 }
 
-/// Doc: (doc function) => returns docstring of a function
-pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
-    }
+define_builtin! {
+    doc,
+    "Help system",
+    "Returns the docstring of a function as a string.\nWorks with user-defined functions that have docstrings.",
+    examples: ["(doc factorial) => \"Computes factorial\""],
+    related: [help],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
 
-    match &args[0] {
-        Value::Lambda { docstring, .. } => match docstring {
-            Some(doc) => Ok(Value::String(doc.clone())),
-            None => Ok(Value::Nil),
-        },
-        _ => Err(EvalError::TypeError),
+        match &args[0] {
+            Value::Lambda { docstring, .. } => match docstring {
+                Some(doc) => Ok(Value::String(doc.clone())),
+                None => Ok(Value::Nil),
+            },
+            _ => Err(EvalError::TypeError),
+        }
+    }
+}
+
+// ============================================================================
+// Filesystem I/O
+// ============================================================================
+
+define_builtin! {
+    read_file,
+    name: "read-file",
+    "Filesystem I/O",
+    signature: "(read-file path)",
+    "Reads and returns the contents of a file as a string.\nPath is relative to allowed sandbox directories.",
+    examples: ["(read-file \"data/input.txt\") => \"file contents\""],
+    related: [write_file, file_exists_q],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let path = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .read_file(path)
+                .map(Value::String)
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+define_builtin! {
+    write_file,
+    name: "write-file",
+    "Filesystem I/O",
+    signature: "(write-file path contents)",
+    "Writes contents to a file, creating it if it doesn't exist.\nReturns #t on success. Path is relative to sandbox.",
+    examples: ["(write-file \"data/output.txt\" \"hello\") => #t"],
+    related: [read_file, file_exists_q],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let path = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let contents = match &args[1] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .write_file(path, contents)
+                .map(|_| Value::Bool(true))
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+define_builtin! {
+    file_exists_q,
+    name: "file-exists?",
+    "Filesystem I/O",
+    signature: "(file-exists? path)",
+    "Tests if a file exists and is accessible in sandbox.\nReturns #t or #f.",
+    examples: [
+        "(file-exists? \"data/file.txt\") => #t",
+        "(file-exists? \"nonexistent.txt\") => #f"
+    ],
+    related: [file_size, read_file],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let path = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .file_exists(path)
+                .map(Value::Bool)
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+define_builtin! {
+    file_size,
+    name: "file-size",
+    "Filesystem I/O",
+    signature: "(file-size path)",
+    "Returns the size of a file in bytes.\nThrows error if file doesn't exist.",
+    examples: ["(file-size \"data/file.txt\") => 1024"],
+    related: [file_exists_q, read_file],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let path = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .file_size(path)
+                .map(|size| Value::Number(size as f64))
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+define_builtin! {
+    list_files,
+    name: "list-files",
+    "Filesystem I/O",
+    signature: "(list-files directory)",
+    "Returns a list of filenames in a directory.\nDoes not include . or .., returns only names not full paths.",
+    examples: ["(list-files \"data\") => (\"file1.txt\" \"file2.txt\")"],
+    related: [file_exists_q],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let dir = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .list_files(dir)
+                .map(|files| Value::List(files.into_iter().map(Value::String).collect::<Vec<_>>()))
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+// ============================================================================
+// Network I/O
+// ============================================================================
+
+define_builtin! {
+    http_get,
+    name: "http-get",
+    "Network I/O",
+    signature: "(http-get url)",
+    "Performs an HTTP GET request and returns the response body as a string.\nURL must be in allowed addresses list. Has 30 second timeout.\nWARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.",
+    examples: ["(http-get \"https://example.com\") => \"<html>...\""],
+    related: [http_post],
+    |args: &[Value]| {
+        if args.len() != 1 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let url = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .http_get(url)
+                .map(Value::String)
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
+    }
+}
+
+define_builtin! {
+    http_post,
+    name: "http-post",
+    "Network I/O",
+    signature: "(http-post url body)",
+    "Performs an HTTP POST request and returns the response body as a string.\nURL must be in allowed addresses. Sends body as plain text. 30 second timeout.\nWARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.",
+    examples: ["(http-post \"https://api.example.com\" \"data\") => \"response\""],
+    related: [http_get],
+    |args: &[Value]| {
+        if args.len() != 2 {
+            return Err(EvalError::ArityMismatch);
+        }
+
+        let url = match &args[0] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        let body = match &args[1] {
+            Value::String(s) => s,
+            _ => return Err(EvalError::TypeError),
+        };
+
+        SANDBOX.with(|s| {
+            let sandbox_ref = s.borrow();
+            let sandbox = sandbox_ref
+                .as_ref()
+                .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+
+            sandbox
+                .http_post(url, body)
+                .map(Value::String)
+                .map_err(|e| EvalError::IoError(e.to_string()))
+        })
     }
 }
 
@@ -659,54 +1255,63 @@ pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
 /// Register all built-in functions in the global environment
 pub fn register_builtins(env: Rc<Environment>) {
     // Arithmetic
-    env.define("+".to_string(), Value::BuiltIn(builtin_add));
-    env.define("-".to_string(), Value::BuiltIn(builtin_sub));
-    env.define("*".to_string(), Value::BuiltIn(builtin_mul));
-    env.define("/".to_string(), Value::BuiltIn(builtin_div));
-    env.define("%".to_string(), Value::BuiltIn(builtin_mod));
+    register_builtin_add(env.clone());
+    register_builtin_sub(env.clone());
+    register_builtin_mul(env.clone());
+    register_builtin_div(env.clone());
+    register_builtin_mod(env.clone());
 
     // Comparison
-    env.define("=".to_string(), Value::BuiltIn(builtin_eq));
-    env.define("<".to_string(), Value::BuiltIn(builtin_lt));
-    env.define(">".to_string(), Value::BuiltIn(builtin_gt));
-    env.define("<=".to_string(), Value::BuiltIn(builtin_le));
-    env.define(">=".to_string(), Value::BuiltIn(builtin_ge));
+    register_builtin_eq(env.clone());
+    register_builtin_lt(env.clone());
+    register_builtin_gt(env.clone());
+    register_builtin_le(env.clone());
+    register_builtin_ge(env.clone());
 
     // Logic
-    env.define("and".to_string(), Value::BuiltIn(builtin_and));
-    env.define("or".to_string(), Value::BuiltIn(builtin_or));
-    env.define("not".to_string(), Value::BuiltIn(builtin_not));
+    register_builtin_and(env.clone());
+    register_builtin_or(env.clone());
+    register_builtin_not(env.clone());
 
     // List operations
-    env.define("cons".to_string(), Value::BuiltIn(builtin_cons));
-    env.define("car".to_string(), Value::BuiltIn(builtin_car));
-    env.define("cdr".to_string(), Value::BuiltIn(builtin_cdr));
-    env.define("list".to_string(), Value::BuiltIn(builtin_list));
-    env.define("length".to_string(), Value::BuiltIn(builtin_length));
-    env.define("empty?".to_string(), Value::BuiltIn(builtin_empty));
+    register_builtin_cons(env.clone());
+    register_builtin_car(env.clone());
+    register_builtin_cdr(env.clone());
+    register_builtin_list(env.clone());
+    register_builtin_length(env.clone());
+    register_builtin_empty_q(env.clone());
 
     // Type predicates
-    env.define("number?".to_string(), Value::BuiltIn(builtin_number_p));
-    env.define("string?".to_string(), Value::BuiltIn(builtin_string_p));
-    env.define("list?".to_string(), Value::BuiltIn(builtin_list_p));
-    env.define("nil?".to_string(), Value::BuiltIn(builtin_nil_p));
-    env.define("symbol?".to_string(), Value::BuiltIn(builtin_symbol_p));
-    env.define("bool?".to_string(), Value::BuiltIn(builtin_bool_p));
+    register_builtin_number_p(env.clone());
+    register_builtin_string_p(env.clone());
+    register_builtin_list_p(env.clone());
+    register_builtin_nil_p(env.clone());
+    register_builtin_symbol_p(env.clone());
+    register_builtin_bool_p(env.clone());
 
     // I/O - Console
-    env.define("print".to_string(), Value::BuiltIn(builtin_print));
-    env.define("println".to_string(), Value::BuiltIn(builtin_println));
+    register_builtin_print(env.clone());
+    register_builtin_println(env.clone());
 
-    // I/O - Filesystem and Network built-ins are registered in main.rs
+    // I/O - Filesystem
+    register_read_file(env.clone());
+    register_write_file(env.clone());
+    register_file_exists_q(env.clone());
+    register_file_size(env.clone());
+    register_list_files(env.clone());
+
+    // I/O - Network
+    register_http_get(env.clone());
+    register_http_post(env.clone());
 
     // Error handling
-    env.define("error".to_string(), Value::BuiltIn(builtin_error));
-    env.define("error?".to_string(), Value::BuiltIn(builtin_error_p));
-    env.define("error-msg".to_string(), Value::BuiltIn(builtin_error_msg));
+    register_error(env.clone());
+    register_error_p(env.clone());
+    register_error_msg(env.clone());
 
     // Help system
-    env.define("help".to_string(), Value::BuiltIn(builtin_help));
-    env.define("doc".to_string(), Value::BuiltIn(builtin_doc));
+    register_help(env.clone());
+    register_doc(env.clone());
 }
 
 #[cfg(test)]
@@ -990,14 +1595,14 @@ mod tests {
     }
 
     #[test]
-    fn test_empty() {
-        let result = builtin_empty(&[Value::List(vec![])]).unwrap();
+    fn test_empty_q() {
+        let result = builtin_empty_q(&[Value::List(vec![])]).unwrap();
         match result {
             Value::Bool(b) => assert!(b),
             _ => panic!("Expected Bool(true)"),
         }
 
-        let result = builtin_empty(&[Value::List(vec![Value::Number(1.0)])]).unwrap();
+        let result = builtin_empty_q(&[Value::List(vec![Value::Number(1.0)])]).unwrap();
         match result {
             Value::Bool(b) => assert!(!b),
             _ => panic!("Expected Bool(false)"),
