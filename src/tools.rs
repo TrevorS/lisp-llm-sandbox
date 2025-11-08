@@ -53,10 +53,10 @@ impl SimpleTool {
 impl Tool for SimpleTool {
     fn call(&self, args: &[Value]) -> Result<Value, EvalError> {
         // Validate arity if specified
-        if let Some(expected_arity) = self.arity
-            && args.len() != expected_arity
-        {
-            return Err(EvalError::ArityMismatch);
+        if let Some(expected_arity) = self.arity {
+            if args.len() != expected_arity {
+                return Err(EvalError::ArityMismatch);
+            }
         }
         (self.func)(args)
     }

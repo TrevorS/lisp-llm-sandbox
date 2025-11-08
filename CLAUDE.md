@@ -4,7 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready Lisp interpreter written in Rust (2024 edition) with ~7k lines of code across 28 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. All 10 implementation phases are complete and thoroughly tested (260+ tests).
+This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
+- **237 comprehensive tests** covering all major features
+- **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
+- **32 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
+- **27 standard library functions** in pure Lisp (higher-order functions, list utilities, predicates, math)
+- **Complete help system** with markdown documentation for all 67 functions (8 special forms + 32 builtins + 27 stdlib)
+- **Markdown-rendered help** with syntax highlighting via termimad
 
 ## Development Commands
 
@@ -19,19 +25,18 @@ cargo run --release script.lisp  # Execute a script file
 
 ### Quality Assurance
 ```bash
-make test        # Run all 260+ tests
-make fmt         # Format code
-make clippy      # Lint with clippy
-make all         # Full pipeline: fmt → clippy → test → build → release
+make test        # Run all 237 tests
+make fmt         # Format code with rustfmt
+make clippy      # Lint with clippy (0 warnings)
+make all         # Full pipeline: clean → fmt → clippy → test → build → release
 cargo test --all -- --nocapture  # Tests with output
 cargo test test_name -- --exact   # Run specific test
 ```
 
-### Common Development Tasks
+### Documentation
 ```bash
-cargo clippy --all-targets --all-features  # Full linting
-cargo fmt --check                          # Check formatting without changes
-cargo doc --no-deps --open                 # Generate & view documentation
+make docs                 # Generate and open rustdoc
+cargo doc --no-deps      # Generate documentation locally
 ```
 
 ## Architecture & Key Components
@@ -72,17 +77,31 @@ Uses **cap-std** for capability-based security:
 The sandbox is thread-local and must be configured at startup. When adding new I/O operations, use the sandbox trait.
 
 ### Help System (src/help.rs)
-**Thread-local registry** of documentation for all 36 built-in functions. When adding new built-ins:
-1. Define the function in `builtins.rs`
-2. Add docstring entry in `builtins.rs::register_help()`
-3. Support docstrings in Lambda definitions: `(define (f x) "docstring" body)`
+**Thread-local registry** with markdown documentation for 67 total functions:
+- **32 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+- **8 special forms**: Registered in `eval.rs` via `register_special_forms_part1()` and `register_special_forms_part2()`
+- **27 stdlib functions**: Enhanced docstrings in `src/stdlib.lisp` with parameters, returns, complexity analysis, examples
+
+**When adding new built-ins:**
+1. Create function in appropriate `src/builtins/*.rs` category module
+2. Register both binding and help entry in that module's `register()` function
+3. For Lisp functions, add docstring as second parameter: `(define (f x) "docstring" body)`
+4. Help entries use markdown with **Parameters**, **Returns**, **Time Complexity**, **Examples**, **Notes**
+
+**Hybrid lookup system:**
+- Registry-based for builtins (via thread-local HELP_REGISTRY)
+- Environment-based for user-defined functions (via CURRENT_ENV)
+- Users access via `(help)` for quick reference or `(help 'function-name)` for details
 
 ### Standard Library (src/stdlib.lisp)
-21 Lisp functions loaded at startup (unless `--no-stdlib` is used). Includes:
-- Higher-order: `map`, `filter`, `reduce`, `compose`, `partial`
-- List utilities: `reverse`, `append`, `member`, `nth`, `zip`
-- Math: `abs`, `min`, `max`, `square`, `factorial`
-- Predicates: `all`, `any`, `even?`, `odd?`
+27 pure Lisp functions loaded at startup (unless `--no-stdlib` is used):
+- **Higher-order** (5): `map`, `filter`, `reduce`, `compose`, `partial` - with O(n) time complexity
+- **List utilities** (9): `reverse`, `append`, `member`, `nth`, `last`, `take`, `drop`, `zip`, `reverse-helper`
+- **Predicates** (3): `all`, `any`, `count` - with short-circuit evaluation notes
+- **Sequences** (1): `range` - generates integer lists
+- **Math** (9): `abs`, `min`, `max`, `square`, `cube`, `even?`, `odd?`, `sum`, `product`, `factorial`
+
+Each function has enhanced docstrings with Parameters, Returns, Time Complexity, Examples, and Notes sections.
 
 ## Important Patterns & Constraints
 
@@ -113,17 +132,24 @@ The macro registry is separate from the environment. When extending macro featur
 
 ## Testing Strategy
 
-The test suite is comprehensive with 260+ tests organized by concern:
-- Unit tests for individual components (parser, env, builtins)
-- Integration tests for language features (closures, TCO, macros)
-- Stdlib tests for standard library functions
-- Sandbox tests for I/O security
+The test suite has **237 tests** organized across 6 test suites:
+- **Unit tests** (88): Parser, environment, error handling
+- **Integration tests** (110): Language features, closures, TCO, macros
+- **Stdlib tests** (17): Standard library functions
+- **Sandbox tests** (1): I/O security and sandboxing
+- **Builtin tests** (21): Individual builtin functions
+
+**Test execution**:
+- `make test` runs all suites
+- `cargo test test_name -- --exact` runs specific test
+- `cargo test --all -- --nocapture` shows println output
 
 **When adding features**:
 1. Write tests first (TDD approach)
-2. Tests should verify both success and edge cases
-3. For sandboxed operations, use the `sandbox::test_sandbox()` helper
+2. Tests verify both success and edge cases
+3. For sandboxed operations, use `sandbox::test_sandbox()` helper
 4. Thread-local tests need `#[serial_test::serial]` attribute
+5. All tests must pass before committing
 
 ## Dependencies & Key Crates
 
@@ -139,18 +165,42 @@ The test suite is comprehensive with 260+ tests organized by concern:
 
 ### Separation of Concerns
 - `parser.rs` - Only parsing, no evaluation
-- `eval.rs` - Only evaluation logic, uses parser as input
-- `builtins.rs` - Only built-in implementations, no parser/evaluator logic
+- `eval.rs` - Only evaluation logic, uses parser as input; contains special forms + registration functions
+- `builtins/` - 10 category modules + coordination (see structure below)
 - `sandbox.rs` - Only I/O safety, isolated from evaluator
 - `env.rs` - Only scope management, no parsing/evaluation
 
-### File Responsibilities
-- `value.rs` - Value type definition and Display impl
-- `error.rs` - Error types
-- `main.rs` - REPL, CLI parsing, I/O built-in registration
-- `lib.rs` - Module exports only
-- `config.rs` - Constants and configuration structures
+### Builtins Directory Structure (src/builtins/)
+```
+builtins/
+├── mod.rs              # Coordination, calls all register functions
+├── arithmetic.rs       # +, -, *, /, %
+├── comparison.rs       # =, <, >, <=, >=
+├── logic.rs            # and, or, not
+├── types.rs            # number?, string?, list?, nil?, symbol?, bool?
+├── lists.rs            # cons, car, cdr, list, length, empty?
+├── console.rs          # print, println
+├── filesystem.rs       # read-file, write-file, file-exists?, file-size, list-files
+├── network.rs          # http-get, http-post
+├── errors.rs           # error, error?, error-msg
+└── help.rs             # help, doc
+```
+
+Each module has:
+- Function implementations
+- `register(env)` function that registers bindings + help entries
+- Module-level doc comments (for cargo doc)
+
+### Core File Responsibilities
+- `value.rs` - All Value enum variants and Display impl
+- `error.rs` - EvalError enum and error types
+- `help.rs` - Help registry (thread-local), help formatting, hybrid lookup
+- `main.rs` - REPL, CLI parsing, initialization sequence
+- `lib.rs` - Module exports + crate-level documentation
+- `config.rs` - Constants (VERSION, WELCOME_MESSAGE, etc.)
 - `tools.rs` - Tool trait for extensibility
+- `highlighter.rs` - Syntax highlighting for REPL output
+- `macros.rs` - Macro expansion before evaluation
 
 ### Adding New Features
 1. Define new Value variant if needed (src/value.rs)
@@ -159,6 +209,53 @@ The test suite is comprehensive with 260+ tests organized by concern:
 4. Write tests immediately (tests/ directory)
 5. Update help documentation if user-facing
 6. Update stdlib.lisp if it's a Lisp-level function
+
+## Documentation System (Recently Implemented)
+
+### Complete Help Coverage
+The interpreter has comprehensive markdown documentation for 67 functions:
+- **8 Special Forms**: define, lambda, if, begin, let, quote, quasiquote, defmacro (in eval.rs)
+- **32 Built-in Functions**: Across 10 categories in src/builtins/
+- **27 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
+
+### Help Entry Format
+Each help entry contains:
+```rust
+HelpEntry {
+    name: "function-name",
+    signature: "(function-name arg1 arg2)",
+    description: "Multi-line description with **bold**, bullet points, examples",
+    examples: vec!["(function-name 1 2) => result"],
+    related: vec!["other-function"],
+    category: "Category Name",
+}
+```
+
+### Stdlib Docstrings Format
+Enhanced Lisp docstrings include sections:
+```lisp
+(define (map f lst)
+  "Apply function to each element, returning new list.
+
+**Parameters:**
+- f: Function to apply
+- lst: Input list
+
+**Returns:** New list with f applied to each element
+
+**Time Complexity:** O(n) where n is list length
+
+**Examples:**
+- (map (lambda (x) (* x 2)) '(1 2 3)) => (2 4 6)
+
+**Notes:** Uses tail call optimization for efficiency.")
+```
+
+### How to Add Documentation
+1. **For new special forms**: Add registration in eval.rs (before test module)
+2. **For new builtins**: Create/edit appropriate src/builtins/*.rs file
+3. **For stdlib functions**: Update src/stdlib.lisp docstring
+4. Run `cargo doc --no-deps --open` to verify documentation renders correctly
 
 ## Common Gotchas
 

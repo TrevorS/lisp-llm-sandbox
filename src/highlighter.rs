@@ -4,11 +4,11 @@
 // Also provides output highlighting for pretty-printed values
 
 use crate::value::Value;
-use rustyline::Helper;
 use rustyline::completion::Completer;
-use rustyline::highlight::{Highlighter, CmdKind};
+use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
+use rustyline::Helper;
 use std::borrow::Cow;
 use std::collections::HashSet;
 
@@ -70,7 +70,7 @@ impl Highlighter for LispHelper {
     }
 
     fn highlight_char(&self, _line: &str, _pos: usize, _kind: CmdKind) -> bool {
-        true  // Always trigger re-highlighting on character input or cursor movement
+        true // Always trigger re-highlighting on character input or cursor movement
     }
 }
 
@@ -153,12 +153,14 @@ fn highlight_line(
                     while i < chars.len() && chars[i].is_ascii_digit() {
                         i += 1;
                     }
-                    if i < chars.len() && chars[i] == '.' && i + 1 < chars.len() {
-                        if chars[i + 1].is_ascii_digit() {
+                    if i < chars.len()
+                        && chars[i] == '.'
+                        && i + 1 < chars.len()
+                        && chars[i + 1].is_ascii_digit()
+                    {
+                        i += 1;
+                        while i < chars.len() && chars[i].is_ascii_digit() {
                             i += 1;
-                            while i < chars.len() && chars[i].is_ascii_digit() {
-                                i += 1;
-                            }
                         }
                     }
                 } else {
@@ -197,12 +199,14 @@ fn highlight_line(
                         while i < chars.len() && chars[i].is_ascii_digit() {
                             i += 1;
                         }
-                        if i < chars.len() && chars[i] == '.' && i + 1 < chars.len() {
-                            if chars[i + 1].is_ascii_digit() {
+                        if i < chars.len()
+                            && chars[i] == '.'
+                            && i + 1 < chars.len()
+                            && chars[i + 1].is_ascii_digit()
+                        {
+                            i += 1;
+                            while i < chars.len() && chars[i].is_ascii_digit() {
                                 i += 1;
-                                while i < chars.len() && chars[i].is_ascii_digit() {
-                                    i += 1;
-                                }
                             }
                         }
                     }
@@ -488,14 +492,14 @@ fn highlight_value(value: &Value) -> String {
             format!("{}{}{}", COLOR_BOOLEAN, bool_str, COLOR_RESET)
         }
         Value::String(s) => {
-            format!("{}\"{}\"{}",  COLOR_STRING, s, COLOR_RESET)
+            format!("{}\"{}\"{}", COLOR_STRING, s, COLOR_RESET)
         }
         Value::Symbol(s) => {
             // Symbols are normally displayed uncolored unless they're special
             s.clone()
         }
         Value::List(items) => {
-            let mut result = format!("{}({}",  COLOR_PARENS, COLOR_RESET);
+            let mut result = format!("{}({}", COLOR_PARENS, COLOR_RESET);
             for (i, item) in items.iter().enumerate() {
                 if i > 0 {
                     result.push(' ');

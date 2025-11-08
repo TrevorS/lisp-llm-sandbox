@@ -78,6 +78,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut macro_reg = MacroRegistry::new();
     register_builtins(env.clone());
 
+    // Register special forms documentation
+    eval::register_special_forms_part1();
+    eval::register_special_forms_part2();
+
+    // Set environment for help system to enable lookup of user-defined functions
+    help::set_current_env(Some(env.clone()));
+
     // Conditionally load standard library
     if !args.no_stdlib {
         let stdlib = include_str!("stdlib.lisp");
@@ -143,14 +150,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Parse and evaluate the expression
                 match parse(&line) {
-                    Ok(expr) => match eval_with_macros(expr, env.clone(), &mut macro_reg) {
-                        Ok(result) => {
-                            println!("=> {}", LispHelper::highlight_output(&result));
+                    Ok(expr) => {
+                        // Set environment for help system lookup
+                        crate::help::set_current_env(Some(env.clone()));
+                        match eval_with_macros(expr, env.clone(), &mut macro_reg) {
+                            Ok(result) => {
+                                println!("=> {}", LispHelper::highlight_output(&result));
+                            }
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                            }
                         }
-                        Err(e) => {
-                            eprintln!("Error: {}", e);
-                        }
-                    },
+                    }
                     Err(e) => {
                         eprintln!("Parse error: {}", e);
                     }
@@ -229,6 +240,8 @@ fn run_script(
         // Parse one expression
         match parse_one_expr(remaining) {
             Ok((expr, rest)) => {
+                // Set environment for help system lookup
+                crate::help::set_current_env(Some(env.clone()));
                 // Evaluate the expression
                 match eval_with_macros(expr, env.clone(), macro_reg) {
                     Ok(_result) => {
@@ -269,6 +282,8 @@ fn load_stdlib(
         // Parse one expression
         match parse_one_expr(remaining) {
             Ok((expr, rest)) => {
+                // Set environment for help system lookup
+                crate::help::set_current_env(Some(env.clone()));
                 // Evaluate the expression
                 match eval_with_macros(expr, env.clone(), macro_reg) {
                     Ok(_) => {

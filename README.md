@@ -23,27 +23,27 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - `unquote-splicing` (,@) - List splicing
 - `defmacro` - Macro definition
 
-### Built-in Functions (36 total)
+### Built-in Functions (32 total, organized by category)
 
-**Arithmetic**: `+`, `-`, `*`, `/`, `%`
+**Arithmetic** (5): `+`, `-`, `*`, `/`, `%`
 
-**Comparison**: `=`, `<`, `>`, `<=`, `>=`
+**Comparison** (5): `=`, `<`, `>`, `<=`, `>=`
 
-**Logic**: `and`, `or`, `not`
+**Logic** (3): `and`, `or`, `not`
 
-**List Operations**: `cons`, `car`, `cdr`, `list`, `length`, `empty?`
+**Type Predicates** (6): `number?`, `string?`, `list?`, `nil?`, `symbol?`, `bool?`
 
-**Type Predicates**: `number?`, `string?`, `list?`, `nil?`, `symbol?`, `bool?`
+**List Operations** (6): `cons`, `car`, `cdr`, `list`, `length`, `empty?`
 
-**Console I/O**: `print`, `println`
+**Console I/O** (2): `print`, `println`
 
-**Filesystem I/O**: `read-file`, `write-file`, `file-exists?`, `file-size`, `list-files`
+**Filesystem I/O** (5): `read-file`, `write-file`, `file-exists?`, `file-size`, `list-files`
 
-**Network I/O**: `http-get`, `http-post`
+**Network I/O** (2): `http-get`, `http-post`
 
-**Help System**: `help`, `doc`
+**Error Handling** (3): `error`, `error?`, `error-msg`
 
-**Error Handling**: `error`, `error?`, `error-msg`
+**Help System** (2): `help`, `doc`
 
 ### Advanced Features
 - **Closures**: Functions capture their lexical environment

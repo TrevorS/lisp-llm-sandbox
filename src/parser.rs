@@ -1,12 +1,12 @@
 // ABOUTME: Parser module for parsing Lisp expressions using nom combinators
 
 use nom::{
-    IResult, Parser,
     branch::alt,
     bytes::complete::{escaped, tag, take_while1},
     character::complete::{char, digit1, multispace1, none_of, one_of},
     combinator::{opt, recognize, value},
     multi::many0,
+    IResult, Parser,
 };
 
 use crate::value::Value;

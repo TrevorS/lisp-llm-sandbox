@@ -507,6 +507,125 @@ fn expand_macros(
     }
 }
 
+/// Register help documentation for special forms (Part 1)
+/// Documents: define, lambda, if, begin
+pub fn register_special_forms_part1() {
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "define".to_string(),
+        signature: "(define name value) or (define (name params...) body)".to_string(),
+        description: "Define a variable or function in the current scope.\n\nThe first form binds a value to a name. The second form is syntactic sugar for defining a function, equivalent to `(define name (lambda (params...) body))`.\n\nReturns the name of the defined symbol.".to_string(),
+        examples: vec![
+            "(define x 42) => x".to_string(),
+            "(define (square x) (* x x)) => square".to_string(),
+            "(define (add a b) (+ a b)) => add".to_string(),
+            "(add 3 4) => 7".to_string(),
+        ],
+        related: vec!["lambda".to_string(), "let".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "lambda".to_string(),
+        signature: "(lambda (params...) [docstring] body)".to_string(),
+        description: "Create an anonymous function.\n\nThe parameters are a list of symbols. The body is evaluated when the function is called with the parameters bound to the argument values. Optionally, a docstring can be provided as the first element of the body.\n\nThe created function captures the lexical environment at definition time, enabling closures.".to_string(),
+        examples: vec![
+            "((lambda (x) (+ x 1)) 5) => 6".to_string(),
+            "(define add (lambda (a b) (+ a b))) => add".to_string(),
+            "(define make-adder (lambda (n) (lambda (x) (+ x n)))) => make-adder".to_string(),
+            "((make-adder 10) 5) => 15".to_string(),
+        ],
+        related: vec!["define".to_string(), "let".to_string(), "doc".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "if".to_string(),
+        signature: "(if condition then-expr [else-expr])".to_string(),
+        description: "Conditional evaluation.\n\nIf condition evaluates to a truthy value (anything except false), then-expr is evaluated and returned. Otherwise, else-expr is evaluated (if provided) and returned. If no else-expr is provided and condition is false, returns nil.\n\nOnly the taken branch is evaluated (short-circuit evaluation).".to_string(),
+        examples: vec![
+            "(if (> 5 3) \"yes\" \"no\") => \"yes\"".to_string(),
+            "(if false 42) => nil".to_string(),
+            "(if true (+ 1 2) (/ 1 0)) => 3".to_string(),
+            "(define (abs x) (if (< x 0) (- x) x)) => abs".to_string(),
+        ],
+        related: vec!["begin".to_string(), "and".to_string(), "or".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "begin".to_string(),
+        signature: "(begin expr1 expr2 ... exprN)".to_string(),
+        description: "Sequence multiple expressions.\n\nEvaluates each expression in order and returns the value of the last expression. All expressions are evaluated for their side effects, but only the final value is returned.\n\nUseful for grouping expressions in contexts that expect a single expression, like in `if` branches or `lambda` bodies.".to_string(),
+        examples: vec![
+            "(begin (print \"step 1\") (print \"step 2\") 42) => 42".to_string(),
+            "(define (side-effects) (begin (print \"first\") (print \"second\") \"result\")) => side-effects".to_string(),
+            "(if condition (begin (print \"doing something\") (+ 1 2)) 0)".to_string(),
+        ],
+        related: vec!["if".to_string(), "define".to_string()],
+        category: "Special forms".to_string(),
+    });
+}
+
+/// Register help documentation for special forms (Part 2)
+/// Documents: let, quote, quasiquote, defmacro
+pub fn register_special_forms_part2() {
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "let".to_string(),
+        signature: "(let ((var1 expr1) (var2 expr2) ...) body)".to_string(),
+        description: "Create local variable bindings.\n\nDefines temporary variables that are visible only within the body. Each variable is bound to the value of its corresponding expression. All binding expressions are evaluated in the outer scope before the body is evaluated.\n\nEquivalent to `((lambda (var1 var2 ...) body) expr1 expr2 ...)`.\n\nUseful for avoiding repeated calculations and improving code clarity.".to_string(),
+        examples: vec![
+            "(let ((x 10) (y 20)) (+ x y)) => 30".to_string(),
+            "(let ((a (+ 1 2)) (b (* 3 4))) (+ a b)) => 15".to_string(),
+            "(let ((x 5)) (let ((y 10)) (+ x y))) => 15".to_string(),
+            "(define (quadratic a b c x) (let ((delta (- (* b b) (* 4 a c)))) (/ delta 2))) => quadratic".to_string(),
+        ],
+        related: vec!["lambda".to_string(), "define".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "quote".to_string(),
+        signature: "(quote expr) or 'expr".to_string(),
+        description: "Return an expression unevaluated.\n\nPrevents evaluation of the expression. Returns the expression itself as data.\n\nOften used with symbols and lists to create data structures that would otherwise be evaluated as code. The shorthand syntax 'expr is equivalent to (quote expr).".to_string(),
+        examples: vec![
+            "'x => x (the symbol, not its value)".to_string(),
+            "'(1 2 3) => (1 2 3) (the list, not evaluated as function call)".to_string(),
+            "(quote (+ 1 2)) => (+ 1 2)".to_string(),
+            "'() => () (empty list)".to_string(),
+        ],
+        related: vec!["quasiquote".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "quasiquote".to_string(),
+        signature: "(quasiquote template) or `template".to_string(),
+        description: "Return a template with selective evaluation.\n\nLike quote, but allows selective evaluation of parts using unquote (,) and unquote-splicing (,@).\n\nUnquoted parts are evaluated; unquoted-spliced lists are spliced into the result. This is the foundation of the macro system.".to_string(),
+        examples: vec![
+            "`(+ 1 2) => (+ 1 2)".to_string(),
+            "`(+ 1 ,(+ 2 3)) => (+ 1 5)".to_string(),
+            "`(list ,@(list 1 2 3)) => (list 1 2 3)".to_string(),
+            "(define x 10) => x".to_string(),
+            "`(x is ,x) => (x is 10)".to_string(),
+        ],
+        related: vec!["quote".to_string(), "defmacro".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "defmacro".to_string(),
+        signature: "(defmacro (name params...) [docstring] body)".to_string(),
+        description: "Define a compile-time transformation.\n\nMacros receive unevaluated arguments and return code to be evaluated. Unlike functions, macro arguments are not evaluated before the macro is called. The macro body should return a list representing the code to evaluate.\n\nMacros enable syntactic abstraction and domain-specific languages.".to_string(),
+        examples: vec![
+            "(defmacro (when condition body) `(if ,condition ,body))".to_string(),
+            "(defmacro (repeat n body) `(let ((i 0)) (while (< i ,n) (begin ,body (set! i (+ i 1))))))".to_string(),
+            "(defmacro (assert condition) `(if (not ,condition) (error \"Assertion failed\")))".to_string(),
+        ],
+        related: vec!["quote".to_string(), "quasiquote".to_string(), "lambda".to_string()],
+        category: "Special forms".to_string(),
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
