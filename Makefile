@@ -6,7 +6,7 @@ help:
 	@echo "  make build      - Build debug version"
 	@echo "  make release    - Build optimized release version"
 	@echo "  make test       - Run all tests"
-	@echo "  make run        - Run the REPL"
+	@echo "  make run        - Run the REPL with full I/O enabled (files + network)"
 	@echo "  make check      - Quick compile check"
 	@echo "  make fmt        - Format code with rustfmt"
 	@echo "  make clippy     - Run clippy linter"
@@ -25,7 +25,7 @@ test:
 	cargo test --all
 
 run:
-	cargo run --release
+	cargo run --release -- --fs-sandbox . --fs-sandbox ./data --fs-sandbox ./examples --fs-sandbox ./scripts --allow-network
 
 check:
 	cargo check

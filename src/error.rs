@@ -17,6 +17,9 @@ pub enum EvalError {
     #[error("Arity mismatch: incorrect number of arguments")]
     ArityMismatch,
 
+    #[error("I/O error: {0}")]
+    IoError(String),
+
     #[error("{0}")]
     Custom(String),
 }

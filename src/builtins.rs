@@ -468,6 +468,59 @@ pub fn builtin_error_msg(args: &[Value]) -> Result<Value, EvalError> {
 }
 
 // ============================================================================
+// Help System
+// ============================================================================
+
+/// Help: (help) or (help 'function-name) => shows help information
+pub fn builtin_help(args: &[Value]) -> Result<Value, EvalError> {
+    use crate::help;
+
+    match args.len() {
+        0 => {
+            // Show quick reference
+            let output = help::format_quick_reference();
+            println!("{}", output);
+            Ok(Value::Nil)
+        }
+        1 => {
+            // Get help for specific function
+            match &args[0] {
+                Value::Symbol(name) => {
+                    // First try built-in help
+                    if let Some(entry) = help::get_help(name) {
+                        let output = help::format_help_entry(&entry);
+                        println!("{}", output);
+                        return Ok(Value::Nil);
+                    }
+
+                    // If not found in help registry, it might be a user function
+                    // User functions would need to be looked up in environment
+                    // For now, just report not found
+                    Err(EvalError::Custom(format!("No help found for '{}'", name)))
+                }
+                _ => Err(EvalError::TypeError),
+            }
+        }
+        _ => Err(EvalError::ArityMismatch),
+    }
+}
+
+/// Doc: (doc function) => returns docstring of a function
+pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::ArityMismatch);
+    }
+
+    match &args[0] {
+        Value::Lambda { docstring, .. } => match docstring {
+            Some(doc) => Ok(Value::String(doc.clone())),
+            None => Ok(Value::Nil),
+        },
+        _ => Err(EvalError::TypeError),
+    }
+}
+
+// ============================================================================
 // Registration
 // ============================================================================
 
@@ -508,14 +561,20 @@ pub fn register_builtins(env: Rc<Environment>) {
     env.define("symbol?".to_string(), Value::BuiltIn(builtin_symbol_p));
     env.define("bool?".to_string(), Value::BuiltIn(builtin_bool_p));
 
-    // I/O
+    // I/O - Console
     env.define("print".to_string(), Value::BuiltIn(builtin_print));
     env.define("println".to_string(), Value::BuiltIn(builtin_println));
+
+    // I/O - Filesystem and Network built-ins are registered in main.rs
 
     // Error handling
     env.define("error".to_string(), Value::BuiltIn(builtin_error));
     env.define("error?".to_string(), Value::BuiltIn(builtin_error_p));
     env.define("error-msg".to_string(), Value::BuiltIn(builtin_error_msg));
+
+    // Help system
+    env.define("help".to_string(), Value::BuiltIn(builtin_help));
+    env.define("doc".to_string(), Value::BuiltIn(builtin_doc));
 }
 
 #[cfg(test)]

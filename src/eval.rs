@@ -129,6 +129,7 @@ pub fn eval_with_macros(
                                 params,
                                 body,
                                 env: lambda_env,
+                                docstring: _,
                             } => {
                                 // Check arity
                                 if params.len() != args.len() {
@@ -213,11 +214,18 @@ fn eval_define(
                 }
             }
 
+            // Extract docstring if present: (define (f x) "doc" body)
+            let (docstring, body) = match &args[1] {
+                Value::String(s) if args.len() > 2 => (Some(s.clone()), Box::new(args[2].clone())),
+                _ => (None, Box::new(args[1].clone())),
+            };
+
             // Create lambda
             let lambda = Value::Lambda {
                 params,
-                body: Box::new(args[1].clone()),
+                body,
                 env: env.clone(),
+                docstring,
             };
 
             // Define it
@@ -232,7 +240,7 @@ fn eval_define(
 }
 
 /// Evaluate a lambda expression
-/// (lambda (x y z) body)
+/// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
 fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::Custom(
@@ -263,10 +271,18 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
         }
     };
 
-    // Body is args[1] (not evaluated yet - will be evaluated when lambda is called)
-    let body = Box::new(args[1].clone());
+    // Extract docstring if present: (lambda (x y) "doc" body)
+    let (docstring, body) = match &args[1] {
+        Value::String(s) if args.len() > 2 => (Some(s.clone()), Box::new(args[2].clone())),
+        _ => (None, Box::new(args[1].clone())),
+    };
 
-    Ok(Value::Lambda { params, body, env })
+    Ok(Value::Lambda {
+        params,
+        body,
+        env,
+        docstring,
+    })
 }
 
 /// Evaluate a let special form

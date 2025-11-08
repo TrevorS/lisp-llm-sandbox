@@ -23,7 +23,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - `unquote-splicing` (,@) - List splicing
 - `defmacro` - Macro definition
 
-### Built-in Functions (29 total)
+### Built-in Functions (36 total)
 
 **Arithmetic**: `+`, `-`, `*`, `/`, `%`
 
@@ -35,7 +35,13 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 
 **Type Predicates**: `number?`, `string?`, `list?`, `nil?`, `symbol?`, `bool?`
 
-**I/O**: `print`, `println`
+**Console I/O**: `print`, `println`
+
+**Filesystem I/O**: `read-file`, `write-file`, `file-exists?`, `file-size`, `list-files`
+
+**Network I/O**: `http-get`, `http-post`
+
+**Help System**: `help`, `doc`
 
 **Error Handling**: `error`, `error?`, `error-msg`
 
@@ -45,6 +51,9 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - **Macros**: Compile-time code transformation
 - **Error Handling**: Catchable error values
 - **Interactive REPL**: Full readline support with history
+- **Sandboxed I/O**: Safe filesystem and network access with capability-based security
+- **First-Class Help System**: Built-in help for all functions, extensible to user code
+- **Function Docstrings**: Define functions with documentation: `(define (f x) "docs" body)`
 
 ## Quick Start
 
@@ -56,8 +65,32 @@ cd lisp-llm-sandbox
 # Build in release mode
 cargo build --release
 
-# Run the REPL
-cargo run --release
+# Run the REPL (with full I/O enabled)
+make run
+
+# Or run with custom I/O configuration
+cargo run --release -- --fs-sandbox . --allow-network
+```
+
+### CLI Options
+```bash
+# Allow filesystem access to specific paths
+cargo run --release -- --fs-sandbox ./data --fs-sandbox ./scripts
+
+# Enable network access with optional allowlist
+cargo run --release -- --allow-network
+
+# Restrict network to specific domains
+cargo run --release -- --allow-network --net-allow example.com --net-allow api.github.com
+
+# Set maximum file size (default 10MB)
+cargo run --release -- --max-file-size 5242880
+
+# Execute a script file
+cargo run --release script.lisp
+
+# Skip standard library loading
+cargo run --release -- --no-stdlib
 ```
 
 ### Your First Session
@@ -84,12 +117,19 @@ Goodbye!
 ## REPL Commands
 
 - `(quit)` or `(exit)` - Exit the interpreter
-- `(help)` - Show help message with examples
-- `(builtins)` - List all built-in functions
 - `(clear)` - Clear the screen
 - **Ctrl-C** - Interrupt current input
 - **Ctrl-D** - Exit gracefully
 - **Up/Down arrows** - Navigate command history
+
+## Help System
+
+The interpreter has a first-class help system:
+
+- `(help)` - Show quick reference of all available functions
+- `(help 'cons)` - Show detailed help for a specific function
+- `(doc my-function)` - Extract docstring from any function
+- Define functions with docstrings: `(define (square x) "Square a number" (* x x))`
 
 ## Examples
 
@@ -154,22 +194,65 @@ Goodbye!
 (error-msg result)  ; => "something went wrong"
 ```
 
+### Sandboxed File I/O
+```lisp
+; Write a file
+(write-file "data/greeting.txt" "Hello, Lisp!")  ; => #t
+
+; Read a file
+(read-file "data/greeting.txt")  ; => "Hello, Lisp!"
+
+; Check if file exists
+(file-exists? "data/greeting.txt")  ; => #t
+
+; Get file size
+(file-size "data/greeting.txt")  ; => 13
+
+; List files in directory
+(list-files "data")  ; => ("greeting.txt" ...)
+```
+
+### Network I/O
+```lisp
+; Make HTTP GET request
+(http-get "https://example.com")  ; => HTML response body
+
+; Make HTTP POST request
+(http-post "https://api.example.com/data" "request body")  ; => response
+```
+
+### Help System
+```lisp
+; Get quick reference
+(help)  ; => Lists all 36 functions
+
+; Get detailed help
+(help 'map)  ; => Detailed documentation for map
+
+; Get docstring from user function
+(define (double x) "Double a number" (* 2 x))
+(doc double)  ; => "Double a number"
+```
+
 ## Project Structure
 
 ```
 lisp-llm-sandbox/
 ├── src/
-│   ├── main.rs          - REPL implementation
+│   ├── main.rs          - REPL implementation, I/O built-in registration
 │   ├── lib.rs           - Library exports
-│   ├── value.rs         - Value type definitions
+│   ├── value.rs         - Value type definitions (with docstring support)
 │   ├── error.rs         - Error types
 │   ├── parser.rs        - S-expression parser (nom-based)
 │   ├── env.rs           - Environment/scope management
-│   ├── eval.rs          - Evaluator with TCO
-│   ├── builtins.rs      - Built-in functions (29 total)
+│   ├── eval.rs          - Evaluator with TCO (with docstring extraction)
+│   ├── builtins.rs      - Built-in functions (36 total) + help system
 │   ├── macros.rs        - Macro system
 │   ├── tools.rs         - Tool trait for extensibility
-│   └── stdlib.lisp      - Standard library (21 functions)
+│   ├── help.rs          - Help documentation system (NEW)
+│   ├── sandbox.rs       - Sandboxed I/O with cap-std (NEW)
+│   ├── config.rs        - Configuration and constants (NEW)
+│   └── stdlib.lisp      - Standard library with docstrings (21 functions)
 ├── tests/
 │   ├── integration_test.rs  - Complete integration tests (17 tests)
 │   ├── stdlib_tests.rs      - Standard library tests (21 tests)
@@ -197,11 +280,26 @@ lisp-llm-sandbox/
 - Environment chains for lexical scoping
 - Special form handling
 - Macro expansion before evaluation
+- Docstring extraction from function definitions
 
 ### Environment
 - Reference-counted (Rc) for sharing
 - Parent-chain lookup for closures
 - Interior mutability (RefCell) for bindings
+
+### Sandboxed I/O (cap-std based)
+- Capability-based filesystem security
+- Prevents directory traversal attacks
+- Configurable allowed paths
+- File size limits
+- Network address allowlist
+- HTTP request timeout support
+
+### Help System
+- Thread-local help registry
+- Comprehensive documentation for 36 built-in functions
+- Extensible docstring support for user functions
+- Pretty-printed help output with ASCII formatting
 
 ### Value Types
 ```rust
@@ -211,7 +309,7 @@ enum Value {
     Symbol(String),
     String(String),
     List(Vec<Value>),
-    Lambda { params, body, env },
+    Lambda { params, body, env, docstring },  // docstring support
     Macro { params, body },
     BuiltIn(fn(&[Value]) -> Result<Value, EvalError>),
     Error(String),
@@ -226,7 +324,7 @@ enum Value {
 cargo test
 ```
 
-**Current Status**: 243 tests passing ✓
+**Current Status**: 260+ tests passing ✓
 
 ### Test Coverage
 - Value display formatting (5 tests)
@@ -239,6 +337,8 @@ cargo test
 - Standard library (21 tests)
 - Integration tests (17 tests)
 - REPL infrastructure (1 test)
+- Help system (4 tests, NEW)
+- Sandbox I/O (9 tests, NEW)
 
 ### Code Quality
 
@@ -251,8 +351,12 @@ All code passes quality checks:
 ## Dependencies
 
 - **nom** (8.0.0) - Parser combinators
-- **rustyline** (17.0.2) - Interactive REPL
+- **rustyline** (17.0.2) - Interactive REPL with readline support
 - **thiserror** (2.0.17) - Error handling
+- **cap-std** (3.4.5) - Capability-based filesystem sandboxing
+- **ureq** (2.10.0) - HTTP client with timeout support
+- **clap** (4.5.51) - CLI argument parsing
+- **serial_test** (3.2.0) - Test synchronization
 
 ## Implementation Phases
 
@@ -329,13 +433,16 @@ cargo run --release < examples/functional_programming.lisp
 ## Future Enhancements
 
 - [ ] String manipulation functions (split, join, substring)
-- [ ] File I/O operations
 - [ ] Module system for code organization
 - [ ] Syntax highlighting in REPL
-- [ ] Auto-completion
-- [ ] Debugger/stepper
+- [ ] Auto-completion for built-in functions
+- [ ] Debugger/stepper with breakpoints
 - [ ] WASM compilation target
 - [ ] Concurrent/parallel evaluation
+- [ ] HTTP response status codes and headers
+- [ ] Custom DNS resolver for network requests
+- [ ] File permission controls
+- [ ] Process execution (shell commands)
 
 ## Contributing
 

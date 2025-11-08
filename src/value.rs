@@ -17,6 +17,7 @@ pub enum Value {
         params: Vec<String>,
         body: Box<Value>,
         env: Rc<Environment>,
+        docstring: Option<String>,
     },
     Macro {
         params: Vec<String>,

@@ -10,6 +10,12 @@ keywords = ["lisp", "interpreter", "scheme", "repl", "functional"]
 categories = ["compilers", "command-line-utilities", "educational"]
 
 [dependencies]
+cap-std = "3.4.5"
+clap = { version = "4.5.51", features = ["derive"] }
 nom = "8"
 rustyline = "17"
 thiserror = "2"
+ureq = { version = "2.10", features = ["json"] }
+
+[dev-dependencies]
+serial_test = "3.2.0"

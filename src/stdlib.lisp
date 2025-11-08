@@ -9,6 +9,7 @@
 ;; Applies function f to each element of list
 ;; Example: (map (lambda (x) (* x 2)) '(1 2 3)) => (2 4 6)
 (define (map f lst)
+  "Apply function f to each element of list, returning new list with results"
   (if (empty? lst)
       '()
       (cons (f (car lst))
@@ -18,6 +19,7 @@
 ;; Keeps only elements matching predicate
 ;; Example: (filter (lambda (x) (> x 2)) '(1 2 3 4 5)) => (3 4 5)
 (define (filter pred lst)
+  "Keep only elements of list that satisfy predicate"
   (if (empty? lst)
       '()
       (if (pred (car lst))
@@ -28,6 +30,7 @@
 ;; Accumulates values using function f starting with init
 ;; Example: (reduce + 0 '(1 2 3 4)) => 10
 (define (reduce f init lst)
+  "Fold list using function f, accumulating from init value"
   (if (empty? lst)
       init
       (reduce f (f init (car lst)) (cdr lst))))
@@ -38,6 +41,7 @@
 ;;          (define inc (lambda (x) (+ x 1)))
 ;;          ((compose double inc) 5) => 12
 (define (compose f g)
+  "Compose two functions: returns function that applies g then f"
   (lambda (x) (f (g x))))
 
 ;; partial(f, arg) -> function
@@ -45,6 +49,7 @@
 ;; Example: (define add5 (partial + 5))
 ;;          (add5 10) => 15
 (define (partial f arg)
+  "Partially apply function f with first argument"
   (lambda (x) (f arg x)))
 
 ;; ============================================================================

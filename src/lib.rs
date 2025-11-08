@@ -4,6 +4,7 @@ pub mod builtins;
 pub mod env;
 pub mod error;
 pub mod eval;
+pub mod help;
 pub mod macros;
 pub mod parser;
 pub mod tools;
