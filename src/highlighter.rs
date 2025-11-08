@@ -1,7 +1,9 @@
 // ABOUTME: Syntax highlighter for REPL with color support
 // Implements rustyline's Highlighter trait to provide ANSI color codes
 // for Lisp syntax elements while preserving display width
+// Also provides output highlighting for pretty-printed values
 
+use crate::value::Value;
 use rustyline::Helper;
 use rustyline::completion::Completer;
 use rustyline::highlight::{Highlighter, CmdKind};
@@ -69,6 +71,14 @@ impl Highlighter for LispHelper {
 
     fn highlight_char(&self, _line: &str, _pos: usize, _kind: CmdKind) -> bool {
         true  // Always trigger re-highlighting on character input or cursor movement
+    }
+}
+
+impl LispHelper {
+    /// Highlight a Lisp value for output display
+    /// Applies color codes to make values more readable in the REPL
+    pub fn highlight_output(value: &Value) -> String {
+        highlight_value(value)
     }
 }
 
@@ -462,6 +472,57 @@ fn get_stdlib_functions() -> HashSet<&'static str> {
     .collect()
 }
 
+/// Recursively highlight a Value for output display
+fn highlight_value(value: &Value) -> String {
+    match value {
+        Value::Number(n) => {
+            let num_str = if n.fract() == 0.0 && n.is_finite() {
+                format!("{}", *n as i64)
+            } else {
+                format!("{}", n)
+            };
+            format!("{}{}{}", COLOR_NUMBER, num_str, COLOR_RESET)
+        }
+        Value::Bool(b) => {
+            let bool_str = if *b { "#t" } else { "#f" };
+            format!("{}{}{}", COLOR_BOOLEAN, bool_str, COLOR_RESET)
+        }
+        Value::String(s) => {
+            format!("{}\"{}\"{}",  COLOR_STRING, s, COLOR_RESET)
+        }
+        Value::Symbol(s) => {
+            // Symbols are normally displayed uncolored unless they're special
+            s.clone()
+        }
+        Value::List(items) => {
+            let mut result = format!("{}({}",  COLOR_PARENS, COLOR_RESET);
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    result.push(' ');
+                }
+                result.push_str(&highlight_value(item));
+            }
+            result.push_str(&format!("{}){}", COLOR_PARENS, COLOR_RESET));
+            result
+        }
+        Value::Lambda { .. } => {
+            format!("{}#<lambda>{}", COLOR_BUILTIN, COLOR_RESET)
+        }
+        Value::Macro { .. } => {
+            format!("{}#<macro>{}", COLOR_BUILTIN, COLOR_RESET)
+        }
+        Value::BuiltIn(_) => {
+            format!("{}#<builtin>{}", COLOR_BUILTIN, COLOR_RESET)
+        }
+        Value::Error(msg) => {
+            format!("{}#<error: {}>{}", COLOR_SPECIAL_FORM, msg, COLOR_RESET)
+        }
+        Value::Nil => {
+            format!("{}nil{}", COLOR_BUILTIN, COLOR_RESET)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -546,5 +607,60 @@ mod tests {
 
         let highlighted = highlight_line("(map inc lst)", &special_forms, &builtins, &stdlib);
         assert!(highlighted.contains(COLOR_BUILTIN)); // 'map' is in stdlib
+    }
+
+    #[test]
+    fn test_output_number_highlighting() {
+        let value = Value::Number(42.0);
+        let highlighted = LispHelper::highlight_output(&value);
+        assert!(highlighted.contains(COLOR_NUMBER));
+        assert!(highlighted.contains("42"));
+    }
+
+    #[test]
+    fn test_output_bool_highlighting() {
+        let value_true = Value::Bool(true);
+        let highlighted_true = LispHelper::highlight_output(&value_true);
+        assert!(highlighted_true.contains(COLOR_BOOLEAN));
+        assert!(highlighted_true.contains("#t"));
+
+        let value_false = Value::Bool(false);
+        let highlighted_false = LispHelper::highlight_output(&value_false);
+        assert!(highlighted_false.contains(COLOR_BOOLEAN));
+        assert!(highlighted_false.contains("#f"));
+    }
+
+    #[test]
+    fn test_output_string_highlighting() {
+        let value = Value::String("hello".to_string());
+        let highlighted = LispHelper::highlight_output(&value);
+        assert!(highlighted.contains(COLOR_STRING));
+        assert!(highlighted.contains("\"hello\""));
+    }
+
+    #[test]
+    fn test_output_list_highlighting() {
+        let value = Value::List(vec![
+            Value::Number(1.0),
+            Value::Number(2.0),
+            Value::Number(3.0),
+        ]);
+        let highlighted = LispHelper::highlight_output(&value);
+        assert!(highlighted.contains(COLOR_PARENS));
+        assert!(highlighted.contains(COLOR_NUMBER));
+    }
+
+    #[test]
+    fn test_output_nil_highlighting() {
+        let value = Value::Nil;
+        let highlighted = LispHelper::highlight_output(&value);
+        assert!(highlighted.contains("nil"));
+    }
+
+    #[test]
+    fn test_output_symbol_highlighting() {
+        let value = Value::Symbol("my-var".to_string());
+        let highlighted = LispHelper::highlight_output(&value);
+        assert!(highlighted.contains("my-var"));
     }
 }

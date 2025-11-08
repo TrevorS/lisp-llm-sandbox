@@ -4,6 +4,7 @@ mod env;
 mod error;
 mod eval;
 mod help;
+mod highlighter;
 mod macros;
 mod parser;
 mod sandbox;
@@ -16,10 +17,11 @@ use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE};
 use env::Environment;
 use eval::eval_with_macros;
 use help::populate_builtin_help;
+use highlighter::LispHelper;
 use macros::MacroRegistry;
 use parser::parse;
-use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
+use rustyline::{Config, Editor};
 use sandbox::Sandbox;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -116,8 +118,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // REPL mode: interactive loop
-    // Create REPL with history support
-    let mut rl = DefaultEditor::new().map_err(|e| format!("Failed to initialize REPL: {}", e))?;
+    // Create REPL with history and syntax highlighting support
+    let config = Config::builder().auto_add_history(true).build();
+    let mut rl =
+        Editor::with_config(config).map_err(|e| format!("Failed to initialize REPL: {}", e))?;
+
+    // Set the helper with syntax highlighting
+    let helper = LispHelper::new();
+    rl.set_helper(Some(helper));
 
     // Try to load history from previous sessions
     let history_file = ".lisp_history";
@@ -160,7 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match parse(&line) {
                     Ok(expr) => match eval_with_macros(expr, env.clone(), &mut macro_reg) {
                         Ok(result) => {
-                            println!("=> {}", result);
+                            println!("=> {}", LispHelper::highlight_output(&result));
                         }
                         Err(e) => {
                             eprintln!("Error: {}", e);
