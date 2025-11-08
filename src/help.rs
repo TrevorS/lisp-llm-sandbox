@@ -119,7 +119,7 @@ pub fn all_names() -> Vec<String> {
     HELP_REGISTRY.with(|reg| reg.borrow().all_names())
 }
 
-/// Format a single help entry for display
+/// Format a single help entry for display with syntax highlighting
 pub fn format_help_entry(entry: &HelpEntry) -> String {
     let mut output = String::new();
 
@@ -127,9 +127,12 @@ pub fn format_help_entry(entry: &HelpEntry) -> String {
     output.push_str(&format!("{} - {}\n", entry.name, entry.category));
     output.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-    // Signature
+    // Signature - split multi-line signatures nicely
     output.push_str("Signature:\n");
-    output.push_str(&format!("  {}\n\n", entry.signature));
+    for sig_line in entry.signature.lines() {
+        output.push_str(&format!("  {}\n", sig_line));
+    }
+    output.push('\n');
 
     // Description
     output.push_str("Description:\n");
@@ -138,11 +141,13 @@ pub fn format_help_entry(entry: &HelpEntry) -> String {
     }
     output.push('\n');
 
-    // Examples
+    // Examples with better formatting
     if !entry.examples.is_empty() {
         output.push_str("Examples:\n");
         for example in &entry.examples {
-            output.push_str(&format!("  {}\n", example));
+            output.push_str("  ");
+            output.push_str(example);
+            output.push('\n');
         }
         output.push('\n');
     }
