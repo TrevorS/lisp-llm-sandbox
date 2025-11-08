@@ -3,7 +3,139 @@
 use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
+use paste::paste;
 use std::rc::Rc;
+
+// ============================================================================
+// Builtin Definition Macro
+// ============================================================================
+//
+// Unified macro for defining builtins with integrated help documentation.
+// Converts identifiers to Lisp names and generates registration code.
+//
+// Usage:
+//   define_builtin! {
+//       identifier,
+//       "Category",
+//       "Description...",
+//       examples: ["example1", "example2"],
+//       related: [related_id1, related_id2],
+//       |args| { /* implementation */ }
+//   }
+//
+// Smart features:
+// - identifier → "identifier" Lisp name + builtin_identifier Rust function
+// - Related identifiers converted to strings automatically
+// - Signature auto-generated as "(identifier ...)"
+// - Optional overrides: name: "custom", signature: "custom sig"
+
+macro_rules! define_builtin {
+    // Main pattern: identifier, category, description, examples, related, implementation
+    {
+        $fn_ident:ident,
+        $category:literal,
+        $description:literal,
+        examples: [$($example:literal),* $(,)?],
+        related: [$($related_ident:ident),* $(,)?],
+        $impl:expr
+    } => {
+        define_builtin! {
+            @inner
+            $fn_ident,
+            stringify!($fn_ident),
+            $category,
+            concat!("(", stringify!($fn_ident), " ...)"),
+            $description,
+            [$($example),*],
+            [$($related_ident),*],
+            $impl
+        }
+    };
+
+    // Pattern with name override
+    {
+        $fn_ident:ident,
+        name: $lisp_name:literal,
+        $category:literal,
+        $description:literal,
+        examples: [$($example:literal),* $(,)?],
+        related: [$($related_ident:ident),* $(,)?],
+        $impl:expr
+    } => {
+        define_builtin! {
+            @inner
+            $fn_ident,
+            $lisp_name,
+            $category,
+            concat!("(", $lisp_name, " ...)"),
+            $description,
+            [$($example),*],
+            [$($related_ident),*],
+            $impl
+        }
+    };
+
+    // Pattern with name and signature override
+    {
+        $fn_ident:ident,
+        name: $lisp_name:literal,
+        $category:literal,
+        signature: $signature:literal,
+        $description:literal,
+        examples: [$($example:literal),* $(,)?],
+        related: [$($related_ident:ident),* $(,)?],
+        $impl:expr
+    } => {
+        define_builtin! {
+            @inner
+            $fn_ident,
+            $lisp_name,
+            $category,
+            $signature,
+            $description,
+            [$($example),*],
+            [$($related_ident),*],
+            $impl
+        }
+    };
+
+    // Inner implementation that generates everything
+    {
+        @inner
+        $fn_ident:ident,
+        $lisp_name:expr,
+        $category:literal,
+        $signature:expr,
+        $description:literal,
+        [$($example:literal),*],
+        [$($related_ident:ident),*],
+        $impl:expr
+    } => {
+        pub fn $fn_ident(args: &[Value]) -> Result<Value, EvalError> {
+            $impl(args)
+        }
+
+        // Helper function to register this builtin
+        paste::paste! {
+            pub fn [<register_ $fn_ident>](
+                env: std::rc::Rc<crate::env::Environment>
+            ) {
+                // Register the function
+                env.define($lisp_name.to_string(), Value::BuiltIn($fn_ident));
+
+                // Register help
+                crate::help::register_help(crate::help::HelpEntry {
+                    name: $lisp_name.to_string(),
+                    category: $category.to_string(),
+                    signature: $signature.to_string(),
+                    description: $description.trim().to_string(),
+                    examples: vec![$($example.to_string()),*],
+                    related: vec![$(stringify!($related_ident).to_string()),*],
+                });
+            }
+        }
+    };
+}
 
 // ============================================================================
 // Arithmetic Operations
