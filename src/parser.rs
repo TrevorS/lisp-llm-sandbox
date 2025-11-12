@@ -320,6 +320,12 @@ pub fn parse(input: &str) -> Result<Value, String> {
         set_pending_docs(docs);
     }
 
+    // Check if input is only whitespace/comments (nothing to parse)
+    if input_after_docs.trim().is_empty() {
+        // Return nil for comment-only input
+        return Ok(Value::Nil);
+    }
+
     // Parse the expression
     match parse_expr(input_after_docs) {
         Ok((rest, value)) => {
