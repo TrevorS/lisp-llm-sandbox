@@ -26,7 +26,7 @@ use std::cell::RefCell;
 // ============================================================================
 
 thread_local! {
-    static TEST_REGISTRY: RefCell<Vec<(String, Value)>> = RefCell::new(Vec::new());
+    static TEST_REGISTRY: RefCell<Vec<(String, Value)>> = const { RefCell::new(Vec::new()) };
 }
 
 #[builtin(name = "assert", category = "Testing", related(assert-equal, assert-error))]
@@ -46,7 +46,7 @@ thread_local! {
 ///
 /// assert-equal, assert-error
 pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() < 1 || args.len() > 2 {
+    if args.is_empty() || args.len() > 2 {
         return Err(EvalError::ArityMismatch);
     }
 
@@ -63,7 +63,10 @@ pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
     match condition {
         Value::Bool(true) => Ok(Value::Bool(true)),
         Value::Bool(false) | Value::Nil => Ok(Value::Error(message)),
-        _ => Ok(Value::Error(format!("{}: expected boolean, got {}", message, condition))),
+        _ => Ok(Value::Error(format!(
+            "{}: expected boolean, got {}",
+            message, condition
+        ))),
     }
 }
 
@@ -160,7 +163,7 @@ fn values_equal(a: &Value, b: &Value) -> bool {
 ///
 /// assert, error?
 pub fn builtin_assert_error(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() < 1 || args.len() > 2 {
+    if args.is_empty() || args.len() > 2 {
         return Err(EvalError::ArityMismatch);
     }
 
@@ -213,7 +216,7 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
 
     // Verify it's a lambda
     match &test_fn {
-        Value::Lambda { .. } => {},
+        Value::Lambda { .. } => {}
         _ => return Err(EvalError::Custom("Test must be a lambda".to_string())),
     }
 
@@ -298,10 +301,22 @@ pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
 
     // Return result as association list
     Ok(Value::List(vec![
-        Value::List(vec![Value::Symbol("passed".to_string()), Value::Number(passed as f64)]),
-        Value::List(vec![Value::Symbol("failed".to_string()), Value::Number(failed as f64)]),
-        Value::List(vec![Value::Symbol("total".to_string()), Value::Number((passed + failed) as f64)]),
-        Value::List(vec![Value::Symbol("tests".to_string()), Value::List(results)]),
+        Value::List(vec![
+            Value::Symbol("passed".to_string()),
+            Value::Number(passed as f64),
+        ]),
+        Value::List(vec![
+            Value::Symbol("failed".to_string()),
+            Value::Number(failed as f64),
+        ]),
+        Value::List(vec![
+            Value::Symbol("total".to_string()),
+            Value::Number((passed + failed) as f64),
+        ]),
+        Value::List(vec![
+            Value::Symbol("tests".to_string()),
+            Value::List(results),
+        ]),
     ]))
 }
 

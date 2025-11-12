@@ -122,7 +122,9 @@ pub fn builtin_substring(args: &[Value]) -> Result<Value, EvalError> {
     if start > chars.len() || end > chars.len() || start > end {
         return Err(EvalError::Custom(format!(
             "Invalid substring indices: start={}, end={}, length={}",
-            start, end, chars.len()
+            start,
+            end,
+            chars.len()
         )));
     }
 
@@ -130,7 +132,11 @@ pub fn builtin_substring(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::String(result))
 }
 
-#[builtin(name = "string-trim", category = "String manipulation", related(substring))]
+#[builtin(
+    name = "string-trim",
+    category = "String manipulation",
+    related(substring)
+)]
 /// Trim whitespace from both ends of string.
 ///
 /// # Examples

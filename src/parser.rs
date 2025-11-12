@@ -18,7 +18,7 @@ use std::cell::RefCell;
 
 thread_local! {
     /// Holds doc comments (;;;) that precede a top-level expression
-    static PENDING_DOCS: RefCell<Vec<String>> = RefCell::new(Vec::new());
+    static PENDING_DOCS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Store doc comments to be attached to the next defined function

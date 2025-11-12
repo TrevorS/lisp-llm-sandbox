@@ -239,9 +239,9 @@ fn test_string_to_number() {
         _ => panic!("Expected number"),
     }
 
-    let result = eval_expr("(string->number \"3.14\")", &env).unwrap();
+    let result = eval_expr("(string->number \"2.75\")", &env).unwrap();
     match result {
-        Value::Number(n) => assert_eq!(n, 3.14),
+        Value::Number(n) => assert_eq!(n, 2.75),
         _ => panic!("Expected number"),
     }
 
