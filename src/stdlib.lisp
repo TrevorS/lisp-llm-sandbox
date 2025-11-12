@@ -5,47 +5,43 @@
 ;; Higher-Order Functions
 ;; ============================================================================
 
-;; map(f, list) -> list
-;; Applies function f to each element of list
+;;; Apply function to each element, returning new list.
+;;;
+;;; **Parameters:**
+;;; - f: Function to apply to each element
+;;; - lst: Input list
+;;;
+;;; **Returns:** New list with f applied to each element
+;;;
+;;; **Time Complexity:** O(n) where n is list length
+;;;
+;;; **Examples:**
+;;; - (map (lambda (x) (* x 2)) '(1 2 3)) => (2 4 6)
+;;; - (map (lambda (x) (+ x 1)) '(0 1 2)) => (1 2 3)
+;;;
+;;; **Notes:** Uses tail call optimization for efficiency. Preserves list structure.
 (define (map f lst)
-  "Apply function to each element, returning new list.
-
-**Parameters:**
-- f: Function to apply to each element
-- lst: Input list
-
-**Returns:** New list with f applied to each element
-
-**Time Complexity:** O(n) where n is list length
-
-**Examples:**
-- (map (lambda (x) (* x 2)) '(1 2 3)) => (2 4 6)
-- (map (lambda (x) (+ x 1)) '(0 1 2)) => (1 2 3)
-
-**Notes:** Uses tail call optimization for efficiency. Preserves list structure."
   (if (empty? lst)
       '()
       (cons (f (car lst))
             (map f (cdr lst)))))
 
-;; filter(pred, list) -> list
-;; Keeps only elements matching predicate
+;;; Keep only elements satisfying predicate.
+;;;
+;;; **Parameters:**
+;;; - pred: Predicate function returning boolean
+;;; - lst: Input list
+;;;
+;;; **Returns:** New list containing only elements where pred returns true
+;;;
+;;; **Time Complexity:** O(n) where n is list length
+;;;
+;;; **Examples:**
+;;; - (filter (lambda (x) (> x 2)) '(1 2 3 4 5)) => (3 4 5)
+;;; - (filter even? '(1 2 3 4 5)) => (2 4)
+;;;
+;;; **Notes:** Preserves element order. Short-circuits on first predicate evaluation.
 (define (filter pred lst)
-  "Keep only elements satisfying predicate.
-
-**Parameters:**
-- pred: Predicate function returning boolean
-- lst: Input list
-
-**Returns:** New list containing only elements where pred returns true
-
-**Time Complexity:** O(n) where n is list length
-
-**Examples:**
-- (filter (lambda (x) (> x 2)) '(1 2 3 4 5)) => (3 4 5)
-- (filter even? '(1 2 3 4 5)) => (2 4)
-
-**Notes:** Preserves element order. Short-circuits on first predicate evaluation."
   (if (empty? lst)
       '()
       (if (pred (car lst))
