@@ -10,12 +10,24 @@
 //!
 //! All comparison functions return boolean (#t or #f)
 
-use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
-use std::rc::Rc;
+use lisp_macros::builtin;
 
+#[builtin(name = "=", category = "Comparison", related(<, >, <=, >=))]
 /// Tests if all arguments are equal. Works with numbers, strings, symbols.
+///
+/// # Examples
+///
+/// ```lisp
+/// (= 5 5) => #t
+/// (= 5 6) => #f
+/// (= "hello" "hello") => #t
+/// ```
+///
+/// # See Also
+///
+/// <, >, <=, >=
 pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -33,7 +45,20 @@ pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(result))
 }
 
-/// Tests if each argument is strictly less than the next
+#[builtin(name = "<", category = "Comparison", related(>, <=, >=, =))]
+/// Tests if each argument is strictly less than the next.
+///
+/// # Examples
+///
+/// ```lisp
+/// (< 1 2) => #t
+/// (< 1 1) => #f
+/// (< 5 3) => #f
+/// ```
+///
+/// # See Also
+///
+/// >, <=, >=, =
 pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -52,7 +77,19 @@ pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(a < b))
 }
 
-/// Tests if each argument is strictly greater than the next
+#[builtin(name = ">", category = "Comparison", related(<, <=, >=, =))]
+/// Tests if each argument is strictly greater than the next.
+///
+/// # Examples
+///
+/// ```lisp
+/// (> 3 2) => #t
+/// (> 3 3) => #f
+/// ```
+///
+/// # See Also
+///
+/// <, <=, >=, =
 pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -71,7 +108,19 @@ pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(a > b))
 }
 
-/// Tests if each argument is less than or equal to the next
+#[builtin(name = "<=", category = "Comparison", related(<, >, >=, =))]
+/// Tests if each argument is less than or equal to the next.
+///
+/// # Examples
+///
+/// ```lisp
+/// (<= 1 2) => #t
+/// (<= 5 5) => #t
+/// ```
+///
+/// # See Also
+///
+/// <, >, >=, =
 pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -90,7 +139,19 @@ pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(a <= b))
 }
 
-/// Tests if each argument is greater than or equal to the next
+#[builtin(name = ">=", category = "Comparison", related(<, >, <=, =))]
+/// Tests if each argument is greater than or equal to the next.
+///
+/// # Examples
+///
+/// ```lisp
+/// (>= 3 2) => #t
+/// (>= 5 5) => #t
+/// ```
+///
+/// # See Also
+///
+/// <, >, <=, =
 pub fn builtin_ge(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -107,100 +168,4 @@ pub fn builtin_ge(args: &[Value]) -> Result<Value, EvalError> {
     };
 
     Ok(Value::Bool(a >= b))
-}
-
-/// Register all comparison builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("=".to_string(), Value::BuiltIn(builtin_eq));
-    env.define("<".to_string(), Value::BuiltIn(builtin_lt));
-    env.define(">".to_string(), Value::BuiltIn(builtin_gt));
-    env.define("<=".to_string(), Value::BuiltIn(builtin_le));
-    env.define(">=".to_string(), Value::BuiltIn(builtin_ge));
-
-    // Register help entries
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "=".to_string(),
-        signature: "(= ...)".to_string(),
-        description: "Tests if all arguments are equal. Works with numbers, strings, symbols."
-            .to_string(),
-        examples: vec![
-            "(= 5 5) => #t".to_string(),
-            "(= 5 5 5) => #t".to_string(),
-            "(= 5 6) => #f".to_string(),
-            "(= \"hello\" \"hello\") => #t".to_string(),
-        ],
-        related: vec![
-            "<".to_string(),
-            ">".to_string(),
-            "<=".to_string(),
-            ">=".to_string(),
-        ],
-        category: "Comparison".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "<".to_string(),
-        signature: "(< ...)".to_string(),
-        description: "Tests if each argument is strictly less than the next.".to_string(),
-        examples: vec![
-            "(< 1 2 3) => #t".to_string(),
-            "(< 1 1) => #f".to_string(),
-            "(< 5 3) => #f".to_string(),
-        ],
-        related: vec![
-            ">".to_string(),
-            "<=".to_string(),
-            ">=".to_string(),
-            "=".to_string(),
-        ],
-        category: "Comparison".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: ">".to_string(),
-        signature: "(> ...)".to_string(),
-        description: "Tests if each argument is strictly greater than the next.".to_string(),
-        examples: vec!["(> 3 2 1) => #t".to_string(), "(> 3 3) => #f".to_string()],
-        related: vec![
-            "<".to_string(),
-            "<=".to_string(),
-            ">=".to_string(),
-            "=".to_string(),
-        ],
-        category: "Comparison".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "<=".to_string(),
-        signature: "(<= ...)".to_string(),
-        description: "Tests if each argument is less than or equal to the next.".to_string(),
-        examples: vec![
-            "(<= 1 2 2 3) => #t".to_string(),
-            "(<= 5 5) => #t".to_string(),
-        ],
-        related: vec![
-            "<".to_string(),
-            ">".to_string(),
-            ">=".to_string(),
-            "=".to_string(),
-        ],
-        category: "Comparison".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: ">=".to_string(),
-        signature: "(>= ...)".to_string(),
-        description: "Tests if each argument is greater than or equal to the next.".to_string(),
-        examples: vec![
-            "(>= 3 2 2 1) => #t".to_string(),
-            "(>= 5 5) => #t".to_string(),
-        ],
-        related: vec![
-            "<".to_string(),
-            ">".to_string(),
-            "<=".to_string(),
-            "=".to_string(),
-        ],
-        category: "Comparison".to_string(),
-    });
 }

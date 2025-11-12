@@ -119,7 +119,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", WELCOME_MESSAGE);
     println!("{}", WELCOME_SUBTITLE);
     println!("Type (quit) or (exit) to exit");
-    println!("Type (help) for function help, (help 'symbol) for details\n");
+    println!("Type (help) for function help, (help 'symbol) for details");
+    println!("Press Enter for multi-line input when expression is incomplete\n");
 
     // REPL loop
     loop {
@@ -131,9 +132,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if line.trim().is_empty() {
                     continue;
                 }
-
-                // Add non-empty lines to history
-                let _ = rl.add_history_entry(line.as_str());
 
                 // Handle special commands
                 match line.trim() {
@@ -231,8 +229,8 @@ fn run_script(
     let mut remaining = contents.trim();
 
     while !remaining.is_empty() {
-        // Skip whitespace and comments
-        remaining = skip_whitespace_and_comments(remaining);
+        // Skip whitespace and regular comments (preserves ;;; doc comments)
+        remaining = skip_whitespace_and_regular_comments(remaining);
         if remaining.is_empty() {
             break;
         }
@@ -273,8 +271,8 @@ fn load_stdlib(
     let mut remaining = code.trim();
 
     while !remaining.is_empty() {
-        // Skip whitespace and comments
-        remaining = skip_whitespace_and_comments(remaining);
+        // Skip whitespace and regular comments (preserves ;;; doc comments)
+        remaining = skip_whitespace_and_regular_comments(remaining);
         if remaining.is_empty() {
             break;
         }
@@ -303,13 +301,18 @@ fn load_stdlib(
     Ok(())
 }
 
-/// Skip whitespace and comments in the input string
-fn skip_whitespace_and_comments(input: &str) -> &str {
+/// Skip whitespace and NON-DOC comments in the input string
+/// Preserves ;;; doc comments so they can be captured by parse()
+fn skip_whitespace_and_regular_comments(input: &str) -> &str {
     let mut remaining = input;
     loop {
         remaining = remaining.trim_start();
-        if remaining.starts_with(';') {
-            // Skip until end of line
+        // Skip only ; and ;; comments, NOT ;;; doc comments
+        if remaining.starts_with(";;;") {
+            // Don't skip doc comments!
+            break;
+        } else if remaining.starts_with(";;") || remaining.starts_with(';') {
+            // Skip regular comments
             if let Some(pos) = remaining.find('\n') {
                 remaining = &remaining[pos + 1..];
             } else {
@@ -323,18 +326,38 @@ fn skip_whitespace_and_comments(input: &str) -> &str {
 }
 
 /// Parse one expression and return it along with the remaining input
+///
+/// This function preserves ;;; doc comments and includes them in the parsed string
+/// so that parse() can capture them via the thread-local PENDING_DOCS.
 fn parse_one_expr(input: &str) -> Result<(value::Value, &str), String> {
-    let trimmed = skip_whitespace_and_comments(input);
-    if trimmed.is_empty() {
+    // Skip only non-doc comments and whitespace, preserve ;;; comments
+    let start = skip_whitespace_and_regular_comments(input);
+    if start.is_empty() {
         return Err("No expression to parse".to_string());
     }
 
-    // Find the end of the first complete s-expression
-    let end_pos = find_expr_end(trimmed)?;
-    let expr_str = &trimmed[..end_pos];
-    let rest = &trimmed[end_pos..];
+    // Collect any preceding ;;; doc comments
+    let mut doc_start = start;
+    while doc_start.starts_with(";;;") {
+        // Find the end of this doc comment line
+        if let Some(pos) = doc_start.find('\n') {
+            doc_start = &doc_start[pos + 1..];
+            doc_start = skip_whitespace_and_regular_comments(doc_start);
+        } else {
+            break;
+        }
+    }
 
-    // Parse the expression
+    // Find the end of the first complete s-expression (after the doc comments)
+    let end_pos = find_expr_end(doc_start)?;
+
+    // Include everything from the start of doc comments to the end of the expression
+    let bytes_from_start = start.len() - doc_start.len();
+    let total_expr_len = bytes_from_start + end_pos;
+    let expr_str = &start[..total_expr_len];
+    let rest = &start[total_expr_len..];
+
+    // Parse the expression (this will capture ;;; comments via thread-local)
     let expr = parse(expr_str)?;
     Ok((expr, rest))
 }

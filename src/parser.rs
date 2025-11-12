@@ -2,27 +2,126 @@
 
 use nom::{
     branch::alt,
-    bytes::complete::{escaped, tag, take_while1},
+    bytes::complete::{escaped, tag, take_while, take_while1},
     character::complete::{char, digit1, multispace1, none_of, one_of},
-    combinator::{opt, recognize, value},
+    combinator::{not, opt, peek, recognize, value},
     multi::many0,
     IResult, Parser,
 };
 
 use crate::value::Value;
+use std::cell::RefCell;
 
-/// Parse a comment (line starting with ;)
-fn parse_comment(input: &str) -> IResult<&str, ()> {
+// ============================================================================
+// Thread-Local Doc Comment Storage
+// ============================================================================
+
+thread_local! {
+    /// Holds doc comments (;;;) that precede a top-level expression
+    static PENDING_DOCS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Store doc comments to be attached to the next defined function
+pub fn set_pending_docs(docs: Vec<String>) {
+    PENDING_DOCS.with(|d| *d.borrow_mut() = docs);
+}
+
+/// Retrieve and clear pending doc comments
+pub fn take_pending_docs() -> Vec<String> {
+    PENDING_DOCS.with(|d| std::mem::take(&mut *d.borrow_mut()))
+}
+
+// ============================================================================
+// Comment Parsers
+// ============================================================================
+
+/// Parse a documentation comment (line starting with ;;;)
+fn parse_doc_comment(input: &str) -> IResult<&str, String> {
+    let (input, _) = tag(";;;")(input)?;
+    let (input, text) = take_while(|c| c != '\n')(input)?;
+    Ok((input, text.trim().to_string()))
+}
+
+/// Parse a regular comment (line starting with ;, but not ;; or ;;;)
+fn parse_regular_comment(input: &str) -> IResult<&str, ()> {
     let (input, _) = char(';')(input)?;
-    let (input, _) = take_while1(|c| c != '\n')(input)?;
+    // Make sure it's not ;; (look ahead without consuming)
+    let (input, _) = not(peek(char(';'))).parse(input)?;
+    let (input, _) = take_while(|c| c != '\n')(input)?;
+    Ok((input, ()))
+}
+
+/// Parse a double semicolon comment (;;, but not ;;;)
+fn parse_double_comment(input: &str) -> IResult<&str, ()> {
+    let (input, _) = tag(";;")(input)?;
+    // Make sure it's not ;;; (look ahead without consuming)
+    let (input, _) = not(peek(char(';'))).parse(input)?;
+    let (input, _) = take_while(|c| c != '\n')(input)?;
     Ok((input, ()))
 }
 
 /// Skip whitespace and comments
 fn ws_and_comments(input: &str) -> IResult<&str, ()> {
-    many0(alt((value((), multispace1), parse_comment)))
-        .map(|_| ())
-        .parse(input)
+    many0(alt((
+        value((), multispace1),
+        parse_double_comment,
+        parse_regular_comment,
+        value((), parse_doc_comment.map(|_| ())), // Doc comments are skipped here
+    )))
+    .map(|_| ())
+    .parse(input)
+}
+
+/// Skip whitespace and regular comments, but collect doc comments
+fn ws_and_collect_docs(input: &str) -> IResult<&str, Vec<String>> {
+    let mut docs = Vec::new();
+    let mut input = input;
+
+    loop {
+        let start = input;
+
+        // Try whitespace
+        if let Ok((rest, _)) = multispace1::<_, nom::error::Error<_>>(input) {
+            input = rest;
+            continue;
+        }
+
+        // Try doc comment (;;;)
+        if let Ok((rest, doc)) = parse_doc_comment(input) {
+            docs.push(doc);
+            input = rest;
+            // Skip trailing newline after doc comment
+            if let Ok((rest, _)) = char::<_, nom::error::Error<_>>('\n')(input) {
+                input = rest;
+            }
+            continue;
+        }
+
+        // Try double semicolon comment (;;) - discard
+        if let Ok((rest, _)) = parse_double_comment(input) {
+            input = rest;
+            if let Ok((rest, _)) = char::<_, nom::error::Error<_>>('\n')(input) {
+                input = rest;
+            }
+            continue;
+        }
+
+        // Try regular comment (;) - discard
+        if let Ok((rest, _)) = parse_regular_comment(input) {
+            input = rest;
+            if let Ok((rest, _)) = char::<_, nom::error::Error<_>>('\n')(input) {
+                input = rest;
+            }
+            continue;
+        }
+
+        // No more whitespace or comments
+        if start == input {
+            break;
+        }
+    }
+
+    Ok((input, docs))
 }
 
 /// Parse a number (integer or floating point)
@@ -209,8 +308,26 @@ fn parse_expr(input: &str) -> IResult<&str, Value> {
 }
 
 /// Public entry point for parsing
+///
+/// Collects any leading doc comments (;;;) and stores them in thread-local storage
+/// so they can be attached to the next `define` expression.
 pub fn parse(input: &str) -> Result<Value, String> {
-    match parse_expr(input) {
+    // First, collect any leading doc comments
+    let (input_after_docs, docs) = ws_and_collect_docs(input).unwrap_or((input, Vec::new()));
+
+    // Store doc comments for the next define
+    if !docs.is_empty() {
+        set_pending_docs(docs);
+    }
+
+    // Check if input is only whitespace/comments (nothing to parse)
+    if input_after_docs.trim().is_empty() {
+        // Return nil for comment-only input
+        return Ok(Value::Nil);
+    }
+
+    // Parse the expression
+    match parse_expr(input_after_docs) {
         Ok((rest, value)) => {
             // Check if there's unconsumed input (after skipping trailing whitespace)
             let (rest, _) = ws_and_comments(rest).unwrap_or((rest, ()));

@@ -3,6 +3,7 @@
 use crate::env::Environment;
 use crate::error::EvalError;
 use crate::macros::MacroRegistry;
+use crate::parser;
 use crate::value::Value;
 use std::rc::Rc;
 
@@ -215,10 +216,32 @@ fn eval_define(
             }
 
             // Extract docstring if present: (define (f x) "doc" body)
-            let (docstring, body) = match &args[1] {
+            let (inline_docstring, body) = match &args[1] {
                 Value::String(s) if args.len() > 2 => (Some(s.clone()), Box::new(args[2].clone())),
                 _ => (None, Box::new(args[1].clone())),
             };
+
+            // Check for pending doc comments from ;;; and merge with inline docstring
+            let pending_docs = parser::take_pending_docs();
+            let docstring = if !pending_docs.is_empty() {
+                // Prefer pending docs (;;; comments) over inline docstrings
+                Some(pending_docs.join("\n"))
+            } else {
+                inline_docstring
+            };
+
+            // Register help entry if we have documentation
+            if let Some(ref doc) = docstring {
+                let signature = format!("({} {})", name, params.join(" "));
+                crate::help::register_help(crate::help::HelpEntry {
+                    name: name.clone(),
+                    signature,
+                    description: doc.clone(),
+                    examples: vec![], // Could parse from doc later
+                    related: vec![],
+                    category: "User Defined".to_string(),
+                });
+            }
 
             // Create lambda
             let lambda = Value::Lambda {
@@ -263,6 +286,10 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
                 }
             }
             params
+        }
+        Value::Nil => {
+            // Empty parameter list () is parsed as Nil
+            Vec::new()
         }
         _ => {
             return Err(EvalError::Custom(
