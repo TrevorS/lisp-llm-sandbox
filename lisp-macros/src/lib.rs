@@ -226,15 +226,11 @@ pub fn builtin(attr: TokenStream, item: TokenStream) -> TokenStream {
         parsed_docs.full_markdown.clone()
     };
 
-    // Generate the registration function name
-    let register_fn_name = quote::format_ident!("register_{}", fn_name);
-    let help_fn_name = quote::format_ident!("register_help_{}", fn_name);
+    // Build the examples as static array
+    let examples = &parsed_docs.examples;
 
-    // Build the examples vector
-    let examples = parsed_docs.examples.clone();
-
-    // Build the related vector (from attribute)
-    let related_vec = related;
+    // Build the related vector (from attribute) as static array
+    let related_vec = &related;
 
     // Build the category (with fallback)
     let cat_to_use = if !category.is_empty() {
@@ -246,30 +242,21 @@ pub fn builtin(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Generate signature as "(name ...)"
     let signature = format!("({} ...)", name_to_use);
 
-    // Generate the expanded code
+    // Generate the expanded code with automatic registration via inventory
     let expanded = quote! {
         #func
 
-        /// Register the #fn_name builtin in the environment
-        #[allow(dead_code)]
-        pub fn #register_fn_name(env: std::rc::Rc<crate::env::Environment>) {
-            env.define(
-                #name_to_use.to_string(),
-                crate::value::Value::BuiltIn(#fn_name)
-            );
-        }
-
-        /// Register help entry for #fn_name
-        #[allow(dead_code)]
-        pub fn #help_fn_name() {
-            crate::help::register_help(crate::help::HelpEntry {
-                name: #name_to_use.to_string(),
-                signature: #signature.to_string(),
-                description: #description.to_string(),
-                examples: vec![#(#examples.to_string()),*],
-                related: vec![#(#related_vec.to_string()),*],
-                category: #cat_to_use.to_string(),
-            });
+        // Submit this builtin to the inventory for automatic collection
+        inventory::submit! {
+            crate::builtins::BuiltinRegistration {
+                name: #name_to_use,
+                function: #fn_name,
+                signature: #signature,
+                description: #description,
+                examples: &[#(#examples),*],
+                related: &[#(#related_vec),*],
+                category: #cat_to_use,
+            }
         }
     };
 

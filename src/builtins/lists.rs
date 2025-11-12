@@ -9,12 +9,26 @@
 //! - `length`: Get number of elements in list
 //! - `empty?`: Test if list is empty
 
-use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
-use std::rc::Rc;
+use lisp_macros::builtin;
 
-/// Constructs a new list by prepending elem to list
+#[builtin(name = "cons", category = "List operations", related(car, cdr, list))]
+/// Constructs a new list by prepending elem to list.
+///
+/// Returns a new list; original is not modified.
+///
+/// # Examples
+///
+/// ```lisp
+/// (cons 1 '(2 3)) => (1 2 3)
+/// (cons 'a '(b c)) => (a b c)
+/// (cons 1 nil) => (1)
+/// ```
+///
+/// # See Also
+///
+/// car, cdr, list
 pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -31,7 +45,21 @@ pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::List(result))
 }
 
+#[builtin(name = "car", category = "List operations", related(cdr, cons))]
 /// Returns the first element of a list. Also called 'head'.
+///
+/// Throws error on empty list or non-list.
+///
+/// # Examples
+///
+/// ```lisp
+/// (car '(1 2 3)) => 1
+/// (car '(a)) => a
+/// ```
+///
+/// # See Also
+///
+/// cdr, cons
 pub fn builtin_car(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::ArityMismatch);
@@ -44,7 +72,22 @@ pub fn builtin_car(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+#[builtin(name = "cdr", category = "List operations", related(car, cons))]
 /// Returns all elements except the first. Also called 'tail'.
+///
+/// Returns nil for single-element list.
+///
+/// # Examples
+///
+/// ```lisp
+/// (cdr '(1 2 3)) => (2 3)
+/// (cdr '(a b)) => (b)
+/// (cdr '(1)) => nil
+/// ```
+///
+/// # See Also
+///
+/// car, cons
 pub fn builtin_cdr(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::ArityMismatch);
@@ -63,12 +106,38 @@ pub fn builtin_cdr(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
-/// Creates a new list containing the given elements in order
+#[builtin(name = "list", category = "List operations", related(cons, car, cdr))]
+/// Creates a new list containing the given elements in order.
+///
+/// # Examples
+///
+/// ```lisp
+/// (list 1 2 3) => (1 2 3)
+/// (list 'a 'b) => (a b)
+/// (list) => nil
+/// ```
+///
+/// # See Also
+///
+/// cons, car, cdr
 pub fn builtin_list(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::List(args.to_vec()))
 }
 
-/// Returns the number of elements in a list
+#[builtin(name = "length", category = "List operations", related(empty?, list))]
+/// Returns the number of elements in a list.
+///
+/// # Examples
+///
+/// ```lisp
+/// (length '(1 2 3)) => 3
+/// (length '()) => 0
+/// (length '(a)) => 1
+/// ```
+///
+/// # See Also
+///
+/// empty?, list
 pub fn builtin_length(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::ArityMismatch);
@@ -81,7 +150,22 @@ pub fn builtin_length(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
-/// Tests if a list is empty (nil or ())
+#[builtin(name = "empty?", category = "List operations", related(length, nil?))]
+/// Tests if a list is empty (nil or ()).
+///
+/// Returns #t for empty lists, #f otherwise.
+///
+/// # Examples
+///
+/// ```lisp
+/// (empty? nil) => #t
+/// (empty? '()) => #t
+/// (empty? '(1)) => #f
+/// ```
+///
+/// # See Also
+///
+/// length, nil?
 pub fn builtin_empty_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::ArityMismatch);
@@ -92,94 +176,4 @@ pub fn builtin_empty_q(args: &[Value]) -> Result<Value, EvalError> {
         Value::Nil => Ok(Value::Bool(true)),
         _ => Err(EvalError::TypeError),
     }
-}
-
-/// Register all list builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("cons".to_string(), Value::BuiltIn(builtin_cons));
-    env.define("car".to_string(), Value::BuiltIn(builtin_car));
-    env.define("cdr".to_string(), Value::BuiltIn(builtin_cdr));
-    env.define("list".to_string(), Value::BuiltIn(builtin_list));
-    env.define("length".to_string(), Value::BuiltIn(builtin_length));
-    env.define("empty?".to_string(), Value::BuiltIn(builtin_empty_q));
-
-    // Register help entries
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "cons".to_string(),
-        signature: "(cons ...)".to_string(),
-        description: "Constructs a new list by prepending elem to list.\nReturns a new list; original is not modified.".to_string(),
-        examples: vec![
-            "(cons 1 '(2 3)) => (1 2 3)".to_string(),
-            "(cons 'a '(b c)) => (a b c)".to_string(),
-            "(cons 1 nil) => (1)".to_string(),
-        ],
-        related: vec!["car".to_string(), "cdr".to_string(), "list".to_string()],
-        category: "List operations".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "car".to_string(),
-        signature: "(car ...)".to_string(),
-        description: "Returns the first element of a list. Also called 'head'.\nThrows error on empty list or non-list.".to_string(),
-        examples: vec![
-            "(car '(1 2 3)) => 1".to_string(),
-            "(car '(a)) => a".to_string(),
-        ],
-        related: vec!["cdr".to_string(), "cons".to_string()],
-        category: "List operations".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "cdr".to_string(),
-        signature: "(cdr ...)".to_string(),
-        description: "Returns all elements except the first. Also called 'tail'.\nReturns nil for single-element list.".to_string(),
-        examples: vec![
-            "(cdr '(1 2 3)) => (2 3)".to_string(),
-            "(cdr '(a b)) => (b)".to_string(),
-            "(cdr '(1)) => nil".to_string(),
-        ],
-        related: vec!["car".to_string(), "cons".to_string()],
-        category: "List operations".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "list".to_string(),
-        signature: "(list ...)".to_string(),
-        description: "Creates a new list containing the given elements in order.".to_string(),
-        examples: vec![
-            "(list 1 2 3) => (1 2 3)".to_string(),
-            "(list 'a 'b) => (a b)".to_string(),
-            "(list) => nil".to_string(),
-        ],
-        related: vec!["cons".to_string(), "car".to_string(), "cdr".to_string()],
-        category: "List operations".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "length".to_string(),
-        signature: "(length ...)".to_string(),
-        description: "Returns the number of elements in a list.".to_string(),
-        examples: vec![
-            "(length '(1 2 3)) => 3".to_string(),
-            "(length '()) => 0".to_string(),
-            "(length '(a)) => 1".to_string(),
-        ],
-        related: vec!["empty?".to_string(), "list".to_string()],
-        category: "List operations".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "empty?".to_string(),
-        signature: "(empty? list)".to_string(),
-        description:
-            "Tests if a list is empty (nil or ()).\nReturns #t for empty lists, #f otherwise."
-                .to_string(),
-        examples: vec![
-            "(empty? nil) => #t".to_string(),
-            "(empty? '()) => #t".to_string(),
-            "(empty? '(1)) => #f".to_string(),
-        ],
-        related: vec!["length".to_string(), "nil?".to_string()],
-        category: "List operations".to_string(),
-    });
 }

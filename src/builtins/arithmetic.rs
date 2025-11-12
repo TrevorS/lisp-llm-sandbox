@@ -8,11 +8,11 @@
 //! - `/`: Divide first by subsequent args, or reciprocal if single arg
 //! - `%`: Remainder operation (modulo) - exactly 2 args required
 
-use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
-use std::rc::Rc;
+use lisp_macros::builtin;
 
+#[builtin(name = "+", category = "Arithmetic", related(-, *, /))]
 /// Returns the sum of all arguments.
 ///
 /// # Examples
@@ -37,6 +37,7 @@ pub fn builtin_add(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Number(sum))
 }
 
+#[builtin(name = "-", category = "Arithmetic", related(+, *, /))]
 /// Subtracts subsequent arguments from the first.
 ///
 /// With one argument, returns its negation.
@@ -75,6 +76,7 @@ pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Number(result))
 }
 
+#[builtin(name = "*", category = "Arithmetic", related(+, -, /))]
 /// Returns the product of all arguments.
 ///
 /// # Examples
@@ -99,6 +101,7 @@ pub fn builtin_mul(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Number(product))
 }
 
+#[builtin(name = "/", category = "Arithmetic", related(+, -, *, %))]
 /// Divides the first argument by subsequent arguments.
 ///
 /// Integer division in Lisp.
@@ -145,6 +148,7 @@ pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Number(result))
 }
 
+#[builtin(name = "%", category = "Arithmetic", related(/))]
 /// Returns the remainder when num1 is divided by num2.
 ///
 /// # Examples
@@ -178,77 +182,4 @@ pub fn builtin_mod(args: &[Value]) -> Result<Value, EvalError> {
     };
 
     Ok(Value::Number(a % b))
-}
-
-/// Register all arithmetic builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("+".to_string(), Value::BuiltIn(builtin_add));
-    env.define("-".to_string(), Value::BuiltIn(builtin_sub));
-    env.define("*".to_string(), Value::BuiltIn(builtin_mul));
-    env.define("/".to_string(), Value::BuiltIn(builtin_div));
-    env.define("%".to_string(), Value::BuiltIn(builtin_mod));
-
-    // Register help entries
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "+".to_string(),
-        signature: "(+ ...)".to_string(),
-        description: "Returns the sum of all arguments.".to_string(),
-        examples: vec![
-            "(+ 1 2 3) => 6".to_string(),
-            "(+ 10) => 10".to_string(),
-            "(+) => 0".to_string(),
-        ],
-        related: vec!["-".to_string(), "*".to_string(), "/".to_string()],
-        category: "Arithmetic".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "-".to_string(),
-        signature: "(- ...)".to_string(),
-        description: "Subtracts subsequent arguments from the first. With one argument, returns its negation.".to_string(),
-        examples: vec![
-            "(- 10 3 2) => 5".to_string(),
-            "(- 5) => -5".to_string(),
-        ],
-        related: vec!["+".to_string(), "*".to_string(), "/".to_string()],
-        category: "Arithmetic".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "*".to_string(),
-        signature: "(* ...)".to_string(),
-        description: "Returns the product of all arguments.".to_string(),
-        examples: vec![
-            "(* 2 3 4) => 24".to_string(),
-            "(* 5) => 5".to_string(),
-            "(*) => 1".to_string(),
-        ],
-        related: vec!["+".to_string(), "-".to_string(), "/".to_string()],
-        category: "Arithmetic".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "/".to_string(),
-        signature: "(/ ...)".to_string(),
-        description:
-            "Divides the first argument by subsequent arguments. Integer division in Lisp."
-                .to_string(),
-        examples: vec!["(/ 20 4) => 5".to_string(), "(/ 100 2 5) => 10".to_string()],
-        related: vec![
-            "+".to_string(),
-            "-".to_string(),
-            "*".to_string(),
-            "%".to_string(),
-        ],
-        category: "Arithmetic".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "%".to_string(),
-        signature: "(% ...)".to_string(),
-        description: "Returns the remainder when num1 is divided by num2.".to_string(),
-        examples: vec!["(% 17 5) => 2".to_string(), "(% 10 3) => 1".to_string()],
-        related: vec!["/".to_string()],
-        category: "Arithmetic".to_string(),
-    });
 }

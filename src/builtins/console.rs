@@ -7,12 +7,23 @@
 //!
 //! Both return nil
 
-use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
-use std::rc::Rc;
+use lisp_macros::builtin;
 
+#[builtin(name = "print", category = "Console I/O", related(println))]
 /// Prints values to stdout without newline. Returns nil.
+///
+/// # Examples
+///
+/// ```lisp
+/// (print "hello") => outputs: hello
+/// (print 1 2 3) => outputs: 1 2 3
+/// ```
+///
+/// # See Also
+///
+/// println
 pub fn builtin_print(args: &[Value]) -> Result<Value, EvalError> {
     for (i, arg) in args.iter().enumerate() {
         if i > 0 {
@@ -26,7 +37,19 @@ pub fn builtin_print(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Nil)
 }
 
+#[builtin(name = "println", category = "Console I/O", related(print))]
 /// Prints values to stdout with newline at end. Returns nil.
+///
+/// # Examples
+///
+/// ```lisp
+/// (println "hello") => outputs: hello
+/// (println "a" "b") => outputs: a b
+/// ```
+///
+/// # See Also
+///
+/// print
 pub fn builtin_println(args: &[Value]) -> Result<Value, EvalError> {
     for (i, arg) in args.iter().enumerate() {
         if i > 0 {
@@ -39,35 +62,4 @@ pub fn builtin_println(args: &[Value]) -> Result<Value, EvalError> {
     }
     println!();
     Ok(Value::Nil)
-}
-
-/// Register all console I/O builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("print".to_string(), Value::BuiltIn(builtin_print));
-    env.define("println".to_string(), Value::BuiltIn(builtin_println));
-
-    // Register help entries
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "print".to_string(),
-        signature: "(print ...)".to_string(),
-        description: "Prints values to stdout without newline. Returns nil.".to_string(),
-        examples: vec![
-            "(print \"hello\") => outputs: hello".to_string(),
-            "(print 1 2 3) => outputs: 1 2 3".to_string(),
-        ],
-        related: vec!["println".to_string()],
-        category: "Console I/O".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "println".to_string(),
-        signature: "(println ...)".to_string(),
-        description: "Prints values to stdout with newline at end. Returns nil.".to_string(),
-        examples: vec![
-            "(println \"hello\") => outputs: hello".to_string(),
-            "(println \"a\" \"b\") => outputs: a b".to_string(),
-        ],
-        related: vec!["print".to_string()],
-        category: "Console I/O".to_string(),
-    });
 }

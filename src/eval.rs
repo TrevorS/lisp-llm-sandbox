@@ -264,6 +264,10 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
             }
             params
         }
+        Value::Nil => {
+            // Empty parameter list () is parsed as Nil
+            Vec::new()
+        }
         _ => {
             return Err(EvalError::Custom(
                 "Lambda parameters must be a list".to_string(),

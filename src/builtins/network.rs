@@ -7,14 +7,28 @@
 //!
 //! All requests are checked against a URL allowlist for safety
 
-use crate::env::Environment;
 use crate::error::EvalError;
 use crate::value::Value;
-use std::rc::Rc;
+use lisp_macros::builtin;
 
 use super::SANDBOX;
 
-/// Performs an HTTP GET request and returns the response body as a string
+#[builtin(name = "http-get", category = "Network I/O", related(http-post))]
+/// Performs an HTTP GET request and returns the response body as a string.
+///
+/// URL must be in allowed addresses list. Has 30 second timeout.
+///
+/// WARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.
+///
+/// # Examples
+///
+/// ```lisp
+/// (http-get "https://example.com") => "<html>..."
+/// ```
+///
+/// # See Also
+///
+/// http-post
 pub fn http_get(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::ArityMismatch);
@@ -38,7 +52,22 @@ pub fn http_get(args: &[Value]) -> Result<Value, EvalError> {
     })
 }
 
-/// Performs an HTTP POST request and returns the response body as a string
+#[builtin(name = "http-post", category = "Network I/O", related(http-get))]
+/// Performs an HTTP POST request and returns the response body as a string.
+///
+/// URL must be in allowed addresses. Sends body as plain text. 30 second timeout.
+///
+/// WARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.
+///
+/// # Examples
+///
+/// ```lisp
+/// (http-post "https://api.example.com" "data") => "response"
+/// ```
+///
+/// # See Also
+///
+/// http-get
 pub fn http_post(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::ArityMismatch);
@@ -65,29 +94,4 @@ pub fn http_post(args: &[Value]) -> Result<Value, EvalError> {
             .map(Value::String)
             .map_err(|e| EvalError::IoError(e.to_string()))
     })
-}
-
-/// Register all network I/O builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("http-get".to_string(), Value::BuiltIn(http_get));
-    env.define("http-post".to_string(), Value::BuiltIn(http_post));
-
-    // Register help entries
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "http-get".to_string(),
-        signature: "(http-get url)".to_string(),
-        description: "Performs an HTTP GET request and returns the response body as a string.\nURL must be in allowed addresses list. Has 30 second timeout.\nWARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.".to_string(),
-        examples: vec!["(http-get \"https://example.com\") => \"<html>...\"".to_string()],
-        related: vec!["http-post".to_string()],
-        category: "Network I/O".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "http-post".to_string(),
-        signature: "(http-post url body)".to_string(),
-        description: "Performs an HTTP POST request and returns the response body as a string.\nURL must be in allowed addresses. Sends body as plain text. 30 second timeout.\nWARNING: DNS lookup cannot be interrupted, may hang if DNS is slow.".to_string(),
-        examples: vec!["(http-post \"https://api.example.com\" \"data\") => \"response\"".to_string()],
-        related: vec!["http-get".to_string()],
-        category: "Network I/O".to_string(),
-    });
 }

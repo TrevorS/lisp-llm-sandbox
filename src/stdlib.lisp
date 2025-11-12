@@ -650,6 +650,246 @@
       (* n (factorial (- n 1)))))
 
 ;; ============================================================================
+;; String Utilities
+;; ============================================================================
+
+;; string-capitalize(s) -> string
+;; Capitalize first character, lowercase rest
+(define (string-capitalize s)
+  "Capitalize first character of string, lowercase the rest.
+
+**Parameters:**
+- s: Input string
+
+**Returns:** String with first character capitalized
+
+**Time Complexity:** O(n) where n is string length
+
+**Examples:**
+- Capitalizes hello => Hello
+- Capitalizes WORLD => World
+
+**Notes:** Built from string-upper, string-lower, and substring primitives."
+  (if (string-empty? s)
+      s
+      (if (= (string-length s) 1)
+          (string-upper s)
+          (string-append (string-upper (substring s 0 1))
+                        (string-lower (substring s 1 (string-length s)))))))
+
+;; string-append(...) is a builtin, but we can define multi-string version
+;; Helper for string-append to work with multiple strings
+(define (string-concat lst)
+  "Concatenate all strings in a list into a single string.
+
+**Parameters:**
+- lst: List of strings
+
+**Returns:** Single concatenated string
+
+**Time Complexity:** O(n) where n is total length of all strings
+
+**Examples:**
+- Joins list of strings into one
+- Empty list produces empty string
+
+**Notes:** Uses list->string. Equivalent to (string-join lst \"\")."
+  (list->string lst))
+
+;; string-reverse(s) -> string
+;; Reverse a string
+(define (string-reverse s)
+  "Reverse a string.
+
+**Parameters:**
+- s: Input string
+
+**Returns:** Reversed string
+
+**Time Complexity:** O(n) where n is string length
+
+**Examples:**
+- Reverses hello => olleh
+- Palindromes stay the same
+
+**Notes:** Converts to list, reverses, converts back to string."
+  (list->string (reverse (string->list s))))
+
+;; string-words(s) -> list
+;; Split string into words (by whitespace)
+(define (string-words s)
+  "Split string into words by whitespace.
+
+**Parameters:**
+- s: Input string
+
+**Returns:** List of words (whitespace-separated substrings)
+
+**Time Complexity:** O(n) where n is string length
+
+**Examples:**
+- (string-words hello world) splits by spaces
+- Trims whitespace before splitting
+
+**Notes:** Uses string-split with space delimiter. Consider trimming first for better results."
+  (string-split (string-trim s) " "))
+
+;; string-lines(s) -> list
+;; Split string into lines
+(define (string-lines s)
+  "Split string into lines by newline characters.
+
+**Parameters:**
+- s: Input string
+
+**Returns:** List of lines
+
+**Time Complexity:** O(n) where n is string length
+
+**Examples:**
+- Splits text into separate lines
+- Each line becomes a list element
+
+**Notes:** Uses string-split with newline delimiter."
+  (string-split s "
+"))
+
+;; string-pad-left(s, width, char) -> string
+;; Pad string on left to reach width
+(define (string-pad-left s width char)
+  "Pad string on left with character to reach minimum width.
+
+**Parameters:**
+- s: Input string
+- width: Desired minimum width
+- char: Single-character string to pad with
+
+**Returns:** Padded string
+
+**Time Complexity:** O(n) where n is padding needed
+
+**Examples:**
+- Pads 42 to width 5 with zeros => 00042
+- Pads text with spaces
+
+**Notes:** If string is already >= width, returns unchanged."
+  (let ((len (string-length s)))
+    (if (>= len width)
+        s
+        (string-append (string-repeat char (- width len)) s))))
+
+;; string-repeat(s, n) -> string
+;; Repeat string n times
+(define (string-repeat s n)
+  "Repeat string n times.
+
+**Parameters:**
+- s: String to repeat
+- n: Number of repetitions (non-negative integer)
+
+**Returns:** Repeated string
+
+**Time Complexity:** O(n*m) where n is repeat count, m is string length
+
+**Examples:**
+- Repeats a string multiple times
+- Returns empty string if n is 0
+
+**Notes:** Uses recursion with tail-call optimization."
+  (if (<= n 0)
+      ""
+      (string-append s (string-repeat s (- n 1)))))
+
+;; ============================================================================
+;; Testing Framework
+;; ============================================================================
+
+;; define-test(name, body) - Define and register a test
+(defmacro define-test (name body)
+  "Define a test and register it in the test registry.
+
+**Usage:** (define-test test-name body-expr)
+
+**Parameters:**
+- name: String name for the test
+- body: Single expression to execute (use begin for multiple)
+
+**Examples:**
+- (define-test math-test (assert-equal (+ 2 2) 4))
+- (define-test string-test (begin (assert-equal 1 1) (assert-equal 2 2)))"
+  `(register-test ,name (lambda () ,body)))
+
+;; alist-get(key, alist) - Get value from association list
+(define (alist-get key alist)
+  "Get value associated with key from association list.
+
+**Parameters:**
+- key: Symbol to look up
+- alist: Association list of ((key value) ...) pairs
+
+**Returns:** Value associated with key, or nil if not found
+
+**Examples:**
+- (alist-get 'passed '((passed 10) (failed 2))) => 10"
+  (if (empty? alist)
+      nil
+      (if (= (car (car alist)) key)
+          (car (cdr (car alist)))
+          (alist-get key (cdr alist)))))
+
+;; print-test-summary(results) - Pretty print test results
+(define (print-test-summary results)
+  "Print formatted test results from run-all-tests.
+
+**Parameters:**
+- results: Result structure from run-all-tests
+
+**Returns:** nil (prints to console)
+
+**Examples:**
+- (print-test-summary (run-all-tests))"
+  (let ((passed (alist-get 'passed results))
+        (failed (alist-get 'failed results))
+        (total (alist-get 'total results))
+        (tests (alist-get 'tests results)))
+    (begin
+      (println "")
+      (println "=================================")
+      (println "        TEST RESULTS")
+      (println "=================================")
+      (print-test-details tests)
+      (println "")
+      (println (string-append "Total:  " (number->string total)))
+      (println (string-append "Passed: " (number->string passed)))
+      (println (string-append "Failed: " (number->string failed)))
+      (if (= failed 0)
+          (println "\nAll tests passed!")
+          (println (string-append "\n" (number->string failed) " test(s) failed")))
+      (println "=================================")
+      nil)))
+
+;; print-test-details(tests) - Print individual test results
+(define (print-test-details tests)
+  "Print each test result with status.
+
+**Parameters:**
+- tests: List of test results ((name status message) ...)"
+  (if (empty? tests)
+      nil
+      (begin
+        (let ((test-result (car tests)))
+          (let ((name (car test-result))
+                (status (car (cdr test-result)))
+                (msg (car (cdr (cdr test-result)))))
+            (begin
+              (print (if (= status 'passed) "  PASS: " "  FAIL: "))
+              (println name)
+              (if (= status 'passed)
+                  nil
+                  (println (string-append "        " msg))))))
+        (print-test-details (cdr tests)))))
+
+;; ============================================================================
 ;; Convenience Macros
 ;; ============================================================================
 

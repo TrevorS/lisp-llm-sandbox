@@ -1,6 +1,6 @@
 //! # Built-in Functions Module
 //!
-//! Core built-in functions for the Lisp interpreter, organized into 10 categories with 32 total functions.
+//! Core built-in functions for the Lisp interpreter, organized into 12 categories with 55 total functions.
 //!
 //! ## Categories
 //!
@@ -13,15 +13,38 @@
 //! - **[filesystem]** (5): read-file, write-file, file-exists?, file-size, list-files - File I/O
 //! - **[network]** (2): http-get, http-post - Network requests
 //! - **[errors]** (3): error, error?, error-msg - Error handling
+//! - **[strings]** (17): string-split, string-join, string-append, substring, string-trim, string-upper, string-lower, string-replace, string-contains?, string-starts-with?, string-ends-with?, string-empty?, string-length, string->number, number->string, string->list, list->string - String manipulation
+//! - **[testing]** (6): assert, assert-equal, assert-error, register-test, run-all-tests, clear-tests - Testing and assertions
 //! - **[help_builtins]** (2): help, doc - Documentation system
 //!
 //! Each category is a sub-module with its own register function that sets up both the
 //! function bindings and their help documentation entries in the help system registry.
 
 use crate::env::Environment;
+use crate::error::EvalError;
+use crate::help::HelpEntry;
 use crate::sandbox::Sandbox;
+use crate::value::Value;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+// ============================================================================
+// Builtin Auto-Registration Infrastructure
+// ============================================================================
+
+/// Registration entry for a builtin function (auto-collected via inventory)
+pub struct BuiltinRegistration {
+    pub name: &'static str,
+    pub function: fn(&[Value]) -> Result<Value, EvalError>,
+    pub signature: &'static str,
+    pub description: &'static str,
+    pub examples: &'static [&'static str],
+    pub related: &'static [&'static str],
+    pub category: &'static str,
+}
+
+// Collect all builtin registrations at compile time
+inventory::collect!(BuiltinRegistration);
 
 // ============================================================================
 // Sandbox Storage for I/O Built-in Functions
@@ -52,35 +75,35 @@ pub mod help_builtins;
 pub mod lists;
 pub mod logic;
 pub mod network;
+pub mod strings;
+pub mod testing;
 pub mod types;
 
-// Re-export for convenience
-pub use arithmetic::register as register_arithmetic;
-pub use comparison::register as register_comparison;
-pub use console::register as register_console;
-pub use errors::register as register_errors;
-pub use filesystem::register as register_filesystem;
-pub use help_builtins::register as register_help;
-pub use lists::register as register_lists;
-pub use logic::register as register_logic;
-pub use network::register as register_network;
-pub use types::register as register_types;
-
 // ============================================================================
-// Main Registration Function
+// Main Registration Function (Auto-Registration via Inventory)
 // ============================================================================
 
 /// Register all built-in functions in the environment
+///
+/// This function automatically discovers and registers all functions marked with
+/// #[builtin] across all modules via the inventory crate's compile-time collection.
 pub fn register_builtins(env: Rc<Environment>) {
-    // Register all builtin categories
-    register_arithmetic(&env);
-    register_comparison(&env);
-    register_logic(&env);
-    register_types(&env);
-    register_lists(&env);
-    register_console(&env);
-    register_filesystem(&env);
-    register_network(&env);
-    register_errors(&env);
-    register_help(&env);
+    // Automatically iterate over all collected builtins
+    for builtin in inventory::iter::<BuiltinRegistration> {
+        env.define(builtin.name.to_string(), Value::BuiltIn(builtin.function));
+
+        // Convert static help data to HelpEntry
+        crate::help::register_help(HelpEntry {
+            name: builtin.name.to_string(),
+            signature: builtin.signature.to_string(),
+            description: builtin.description.to_string(),
+            examples: builtin.examples.iter().map(|s| s.to_string()).collect(),
+            related: builtin.related.iter().map(|s| s.to_string()).collect(),
+            category: builtin.category.to_string(),
+        });
+    }
+
+    // Note: help_builtins module still needs manual registration since it uses
+    // special forms and environment access (not simple builtin functions)
+    help_builtins::register(&env);
 }
