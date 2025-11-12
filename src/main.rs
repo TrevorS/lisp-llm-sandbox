@@ -119,53 +119,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", WELCOME_MESSAGE);
     println!("{}", WELCOME_SUBTITLE);
     println!("Type (quit) or (exit) to exit");
-    println!("Type (help) for function help, (help 'symbol) for details\n");
+    println!("Type (help) for function help, (help 'symbol) for details");
+    println!("Press Enter for multi-line input when expression is incomplete\n");
 
     // REPL loop
     loop {
         let readline = rl.readline("lisp> ");
 
         match readline {
-            Ok(mut line) => {
+            Ok(line) => {
                 // Skip empty lines
                 if line.trim().is_empty() {
                     continue;
                 }
-
-                // Check if input is incomplete (needs multi-line mode)
-                while is_incomplete_input(&line) {
-                    // Enter multi-line mode
-                    match rl.readline("..> ") {
-                        Ok(continuation) => {
-                            line.push('\n');
-                            line.push_str(&continuation);
-                        }
-                        Err(ReadlineError::Interrupted) => {
-                            // Ctrl-C cancels multi-line input
-                            println!("^C");
-                            line.clear();
-                            break;
-                        }
-                        Err(ReadlineError::Eof) => {
-                            // Ctrl-D exits
-                            println!("\nGoodbye!");
-                            return Ok(());
-                        }
-                        Err(err) => {
-                            eprintln!("Error: {}", err);
-                            line.clear();
-                            break;
-                        }
-                    }
-                }
-
-                // Skip if cancelled
-                if line.trim().is_empty() {
-                    continue;
-                }
-
-                // Add non-empty lines to history
-                let _ = rl.add_history_entry(line.as_str());
 
                 // Handle special commands
                 match line.trim() {
@@ -220,72 +186,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = rl.save_history(history_file);
 
     Ok(())
-}
-
-/// Check if input is incomplete and needs more lines
-///
-/// Returns true if:
-/// - Input starts with ;;; (doc comment - needs a define to follow)
-/// - Input has unclosed parentheses
-/// - Input has unclosed strings
-fn is_incomplete_input(input: &str) -> bool {
-    let trimmed = input.trim();
-
-    // Empty input is complete
-    if trimmed.is_empty() {
-        return false;
-    }
-
-    // If input starts with ;;; (doc comment), it's incomplete unless followed by define
-    if trimmed.starts_with(";;;") {
-        // Check if there's a non-comment expression after the doc comments
-        let mut has_expression = false;
-        for line in input.lines() {
-            let line_trimmed = line.trim();
-            if !line_trimmed.is_empty()
-                && !line_trimmed.starts_with(";")
-                && !line_trimmed.chars().all(char::is_whitespace)
-            {
-                has_expression = true;
-                break;
-            }
-        }
-        if !has_expression {
-            return true; // Doc comment without following expression
-        }
-    }
-
-    // Check for balanced parentheses and quotes
-    let mut paren_depth = 0;
-    let mut in_string = false;
-    let mut chars = input.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            ';' if !in_string => {
-                // Skip comments - find end of line
-                while let Some(c) = chars.next() {
-                    if c == '\n' {
-                        break;
-                    }
-                }
-            }
-            '"' => {
-                // Check if it's escaped
-                in_string = !in_string;
-            }
-            '\\' if in_string => {
-                // Skip next character (it's escaped)
-                chars.next();
-            }
-            '(' if !in_string => paren_depth += 1,
-            ')' if !in_string => paren_depth -= 1,
-            _ => {}
-        }
-    }
-
-    // Incomplete if we have unclosed parens or unclosed string
-    paren_depth > 0 || in_string
 }
 
 /// Build filesystem configuration from CLI arguments

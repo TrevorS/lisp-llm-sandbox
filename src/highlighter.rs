@@ -7,7 +7,7 @@ use crate::value::Value;
 use rustyline::completion::Completer;
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
-use rustyline::validate::Validator;
+use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::Helper;
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -50,7 +50,18 @@ impl Hinter for LispHelper {
     type Hint = String;
 }
 
-impl Validator for LispHelper {}
+impl Validator for LispHelper {
+    fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
+        let input = ctx.input();
+
+        // Check if input is incomplete using the same logic as main.rs
+        if is_input_incomplete(input) {
+            Ok(ValidationResult::Incomplete)
+        } else {
+            Ok(ValidationResult::Valid(None))
+        }
+    }
+}
 
 impl Highlighter for LispHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
@@ -358,6 +369,51 @@ fn highlight_line(
     }
 
     result
+}
+
+/// Check if input is incomplete and needs more lines
+fn is_input_incomplete(input: &str) -> bool {
+    let trimmed = input.trim();
+
+    // If input starts with ;;; (doc comment), check for following expression
+    if trimmed.starts_with(";;;") {
+        let mut has_expression = false;
+        for line in input.lines() {
+            let line_trimmed = line.trim();
+            if !line_trimmed.is_empty()
+                && !line_trimmed.starts_with(";")
+                && !line_trimmed.chars().all(char::is_whitespace)
+            {
+                has_expression = true;
+                break;
+            }
+        }
+        if !has_expression {
+            return true;
+        }
+    }
+
+    // Check for balanced parentheses and quotes
+    let mut paren_depth = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    for ch in trimmed.chars() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if in_string => escape_next = true,
+            '"' => in_string = !in_string,
+            '(' if !in_string => paren_depth += 1,
+            ')' if !in_string => paren_depth -= 1,
+            _ => {}
+        }
+    }
+
+    paren_depth > 0 || in_string
 }
 
 /// Get all special forms (keywords that have special evaluation semantics)
