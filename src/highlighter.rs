@@ -54,6 +54,13 @@ impl Validator for LispHelper {
     fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
         let input = ctx.input();
 
+        // Check for obvious syntax errors (e.g., stray closing parens) - fail fast
+        if has_syntax_error(input) {
+            return Ok(ValidationResult::Invalid(Some(
+                "Syntax error: unmatched closing parenthesis".into(),
+            )));
+        }
+
         // Check if input is incomplete using the same logic as main.rs
         if is_input_incomplete(input) {
             Ok(ValidationResult::Incomplete)
@@ -416,6 +423,45 @@ fn is_input_incomplete(input: &str) -> bool {
     paren_depth > 0 || in_string
 }
 
+/// Check if input has obvious syntax errors (e.g., stray closing parens)
+/// Returns true if expression is malformed and should fail immediately
+pub fn has_syntax_error(input: &str) -> bool {
+    let trimmed = input.trim();
+
+    // Skip comment-only input
+    if trimmed.is_empty() || trimmed.starts_with(";") {
+        return false;
+    }
+
+    // Count parentheses balance
+    let mut paren_depth = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+
+    for ch in trimmed.chars() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+
+        match ch {
+            '\\' if in_string => escape_next = true,
+            '"' => in_string = !in_string,
+            '(' if !in_string => paren_depth += 1,
+            ')' if !in_string => {
+                paren_depth -= 1;
+                // More closing parens than opening = syntax error
+                if paren_depth < 0 {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    false
+}
+
 /// Get all special forms (keywords that have special evaluation semantics)
 fn get_special_forms() -> HashSet<&'static str> {
     [
@@ -722,5 +768,65 @@ mod tests {
         let value = Value::Symbol("my-var".to_string());
         let highlighted = LispHelper::highlight_output(&value);
         assert!(highlighted.contains("my-var"));
+    }
+
+    #[test]
+    fn test_syntax_error_stray_closing_paren() {
+        assert!(has_syntax_error(")"));
+        assert!(has_syntax_error("(+ 1 2))"));
+        assert!(has_syntax_error("(* 3 4)))"));
+    }
+
+    #[test]
+    fn test_syntax_error_balanced_parens() {
+        assert!(!has_syntax_error("(+ 1 2)"));
+        assert!(!has_syntax_error("(define x 5)"));
+        assert!(!has_syntax_error("((lambda (x) x) 5)"));
+    }
+
+    #[test]
+    fn test_syntax_error_incomplete_expression() {
+        // Incomplete is not an error, just incomplete
+        assert!(!has_syntax_error("(+ 1"));
+        assert!(!has_syntax_error("(define (f x)"));
+    }
+
+    #[test]
+    fn test_syntax_error_comment_only() {
+        // Comments should not trigger error
+        assert!(!has_syntax_error("; comment"));
+        assert!(!has_syntax_error(";;; doc comment"));
+    }
+
+    #[test]
+    fn test_syntax_error_string_with_parens() {
+        // Parens inside strings should not affect balance check
+        assert!(!has_syntax_error("(string-append \"(\" \")\")"));
+        // Unclosed string is incomplete, not a syntax error
+        assert!(!has_syntax_error("\"unclosed string with )"));
+    }
+
+    #[test]
+    fn test_incomplete_input_detection() {
+        // Incomplete expressions should return true
+        assert!(is_input_incomplete("(+ 1 2"));
+        assert!(is_input_incomplete("(define x"));
+        assert!(is_input_incomplete("\"unclosed string"));
+    }
+
+    #[test]
+    fn test_incomplete_input_complete_expression() {
+        // Complete expressions should return false
+        assert!(!is_input_incomplete("(+ 1 2)"));
+        assert!(!is_input_incomplete("42"));
+        assert!(!is_input_incomplete("\"hello\""));
+    }
+
+    #[test]
+    fn test_incomplete_input_doc_comment() {
+        // Doc comment without expression
+        assert!(is_input_incomplete(";;; This is a doc comment"));
+        // Doc comment with expression
+        assert!(!is_input_incomplete(";;; Doc\n(define x 5)"));
     }
 }
