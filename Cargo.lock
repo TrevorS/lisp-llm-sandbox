@@ -733,6 +733,8 @@ dependencies = [
  "paste",
  "rustyline",
  "rustyline-derive",
+ "serde",
+ "serde_json",
  "serial_test",
  "termimad",
  "thiserror",

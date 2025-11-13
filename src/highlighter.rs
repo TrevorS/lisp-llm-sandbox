@@ -600,6 +600,10 @@ fn highlight_value(value: &Value) -> String {
             // Symbols are normally displayed uncolored unless they're special
             s.clone()
         }
+        Value::Keyword(k) => {
+            // Keywords displayed with : prefix
+            format!("{}:{}{}", COLOR_STRING, k, COLOR_RESET)
+        }
         Value::List(items) => {
             let mut result = format!("{}({}", COLOR_PARENS, COLOR_RESET);
             for (i, item) in items.iter().enumerate() {
@@ -609,6 +613,20 @@ fn highlight_value(value: &Value) -> String {
                 result.push_str(&highlight_value(item));
             }
             result.push_str(&format!("{}){}", COLOR_PARENS, COLOR_RESET));
+            result
+        }
+        Value::Map(map) => {
+            let mut result = format!("{}{{{}", COLOR_PARENS, COLOR_RESET);
+            let mut entries: Vec<_> = map.iter().collect();
+            entries.sort_by_key(|(k, _)| *k);
+            for (i, (key, value)) in entries.iter().enumerate() {
+                if i > 0 {
+                    result.push(' ');
+                }
+                result.push_str(&format!("{}:{}{} ", COLOR_STRING, key, COLOR_RESET));
+                result.push_str(&highlight_value(value));
+            }
+            result.push_str(&format!("{}}}{}", COLOR_PARENS, COLOR_RESET));
             result
         }
         Value::Lambda { .. } => {

@@ -2,6 +2,7 @@
 
 use crate::env::Environment;
 use crate::error::EvalError;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -11,8 +12,10 @@ pub enum Value {
     Number(f64),
     Bool(bool),
     Symbol(String),
+    Keyword(String), // For :key syntax - keywords are self-evaluating
     String(String),
     List(Vec<Value>),
+    Map(HashMap<String, Value>), // Key-value maps
     Lambda {
         params: Vec<String>,
         body: Box<Value>,
@@ -41,6 +44,7 @@ impl fmt::Display for Value {
             }
             Value::Bool(b) => write!(f, "{}", if *b { "#t" } else { "#f" }),
             Value::Symbol(s) => write!(f, "{}", s),
+            Value::Keyword(k) => write!(f, ":{}", k),
             Value::String(s) => write!(f, "\"{}\"", s),
             Value::List(items) => {
                 write!(f, "(")?;
@@ -51,6 +55,18 @@ impl fmt::Display for Value {
                     write!(f, "{}", item)?;
                 }
                 write!(f, ")")
+            }
+            Value::Map(map) => {
+                write!(f, "{{")?;
+                let mut entries: Vec<_> = map.iter().collect();
+                entries.sort_by_key(|(k, _)| *k); // Sort for consistent display
+                for (i, (key, value)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, ":{} {}", key, value)?;
+                }
+                write!(f, "}}")
             }
             Value::Lambda { .. } => write!(f, "#<lambda>"),
             Value::Macro { .. } => write!(f, "#<macro>"),

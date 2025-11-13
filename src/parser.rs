@@ -2,7 +2,7 @@
 
 use nom::{
     branch::alt,
-    bytes::complete::{escaped, tag, take_while, take_while1},
+    bytes::complete::{escaped, tag, take_while},
     character::complete::{char, digit1, multispace1, none_of, one_of},
     combinator::{not, opt, peek, recognize, value},
     multi::many0,
@@ -152,13 +152,13 @@ fn parse_bool(input: &str) -> IResult<&str, Value> {
     .parse(input)
 }
 
-/// Parse a symbol
-/// Starts with letter or special chars: +-*/%<>=!?
-/// Followed by alphanumeric, -, or _
-fn parse_symbol(input: &str) -> IResult<&str, Value> {
+/// Parse a keyword: :key
+/// Keywords are self-evaluating symbols that start with :
+fn parse_keyword(input: &str) -> IResult<&str, Value> {
+    let (input, _) = char(':')(input)?;
     let (input, first) =
         one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/%<>=!?")(input)?;
-    let (input, rest) = take_while1::<_, _, nom::error::Error<_>>(|c: char| {
+    let (input, rest) = take_while::<_, _, nom::error::Error<_>>(|c: char| {
         c.is_alphanumeric()
             || c == '-'
             || c == '_'
@@ -171,8 +171,36 @@ fn parse_symbol(input: &str) -> IResult<&str, Value> {
             || c == '*'
             || c == '/'
             || c == '%'
-    })(input)
-    .unwrap_or((input, ""));
+    })(input)?;
+
+    let mut keyword = String::new();
+    keyword.push(first);
+    keyword.push_str(rest);
+
+    Ok((input, Value::Keyword(keyword)))
+}
+
+/// Parse a symbol
+/// Starts with letter or special chars: +-*/%<>=!?
+/// Followed by alphanumeric, -, or _
+fn parse_symbol(input: &str) -> IResult<&str, Value> {
+    let (input, first) =
+        one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/%<>=!?")(input)?;
+    let (input, rest) = take_while::<_, _, nom::error::Error<_>>(|c: char| {
+        c.is_alphanumeric()
+            || c == '-'
+            || c == '_'
+            || c == '?'
+            || c == '!'
+            || c == '<'
+            || c == '>'
+            || c == '='
+            || c == '+'
+            || c == '*'
+            || c == '/'
+            || c == '%'
+            || c == ':'  // Allow : in symbols for namespace support (fs:read)
+    })(input)?;
 
     let mut symbol = String::new();
     symbol.push(first);
@@ -291,6 +319,48 @@ fn parse_list(input: &str) -> IResult<&str, Value> {
     }
 }
 
+/// Parse a map: {:key1 value1 :key2 value2 ...}
+/// Keys must be keywords
+fn parse_map(input: &str) -> IResult<&str, Value> {
+    use std::collections::HashMap;
+
+    let (input, _) = char('{')(input)?;
+    let (input, _) = ws_and_comments(input)?;
+
+    let mut map = HashMap::new();
+    let mut remaining = input;
+
+    loop {
+        // Try to parse closing brace
+        if let Ok((rest, _)) = char::<_, nom::error::Error<_>>('}')(remaining) {
+            return Ok((rest, Value::Map(map)));
+        }
+
+        // Parse key (must be a keyword)
+        let (rest, key_expr) = parse_expr(remaining)?;
+        let key = match key_expr {
+            Value::Keyword(k) => k,
+            _ => {
+                return Err(nom::Err::Failure(nom::error::Error::new(
+                    remaining,
+                    nom::error::ErrorKind::Tag,
+                )))
+            }
+        };
+
+        // Skip whitespace
+        let (rest, _) = ws_and_comments(rest)?;
+
+        // Parse value
+        let (rest, value) = parse_expr(rest)?;
+        map.insert(key, value);
+
+        // Skip whitespace
+        let (rest, _) = ws_and_comments(rest)?;
+        remaining = rest;
+    }
+}
+
 /// Main expression parser - tries all alternatives
 fn parse_expr(input: &str) -> IResult<&str, Value> {
     let (input, _) = ws_and_comments(input)?;
@@ -298,10 +368,12 @@ fn parse_expr(input: &str) -> IResult<&str, Value> {
         parse_quote,
         parse_quasiquote,
         parse_unquote,
+        parse_map,     // Try map before list
         parse_list,
         parse_bool,
         parse_number,
         parse_string,
+        parse_keyword, // Try keyword before symbol (both can start similarly)
         parse_symbol,
     ))
     .parse(input)

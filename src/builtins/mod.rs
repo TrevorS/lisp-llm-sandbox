@@ -74,6 +74,7 @@ pub mod filesystem;
 pub mod help_builtins;
 pub mod lists;
 pub mod logic;
+pub mod maps;
 pub mod network;
 pub mod strings;
 pub mod testing;

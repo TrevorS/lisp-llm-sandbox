@@ -26,8 +26,19 @@ pub fn eval_with_macros(
 
         match &expr {
             // Self-evaluating values
-            Value::Number(_) | Value::Bool(_) | Value::String(_) | Value::Nil => {
+            Value::Number(_) | Value::Bool(_) | Value::String(_) | Value::Keyword(_) | Value::Nil => {
                 return Ok(expr.clone());
+            }
+
+            // Maps: evaluate all values
+            Value::Map(map) => {
+                use std::collections::HashMap;
+                let mut evaluated_map = HashMap::new();
+                for (key, value) in map {
+                    let evaluated_value = eval_with_macros(value.clone(), current_env.clone(), macro_reg)?;
+                    evaluated_map.insert(key.clone(), evaluated_value);
+                }
+                return Ok(Value::Map(evaluated_map));
             }
 
             // Symbol lookup

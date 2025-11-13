@@ -132,5 +132,6 @@ pub mod help;
 pub mod macros;
 pub mod parser;
 pub mod sandbox;
+pub mod stdlib;
 pub mod tools;
 pub mod value;

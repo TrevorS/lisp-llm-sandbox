@@ -8,10 +8,12 @@ mod highlighter;
 mod macros;
 mod parser;
 mod sandbox;
+mod stdlib;
 mod tools;
 mod value;
 
 use builtins::{register_builtins, set_sandbox_storage};
+use stdlib::register_stdlib;
 use clap::Parser;
 use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE};
 use env::Environment;
@@ -77,6 +79,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let env = Environment::new();
     let mut macro_reg = MacroRegistry::new();
     register_builtins(env.clone());
+    register_stdlib(env.clone());
 
     // Register special forms documentation
     eval::register_special_forms_part1();
