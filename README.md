@@ -9,6 +9,8 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - **Booleans**: `#t` and `#f`
 - **Strings**: Double-quoted text
 - **Symbols**: Variable and function names
+- **Keywords**: Self-evaluating identifiers `:name`, `:age`
+- **Maps**: Key-value structures `{:name "Alice" :age 30}`
 - **Lists**: S-expressions `(1 2 3)`
 - **Nil**: Special empty/null value
 
@@ -23,7 +25,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - `unquote-splicing` (,@) - List splicing
 - `defmacro` - Macro definition
 
-### Built-in Functions (32 total, organized by category)
+### Built-in Functions (43 total, organized by category)
 
 **Arithmetic** (5): `+`, `-`, `*`, `/`, `%`
 
@@ -31,9 +33,11 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 
 **Logic** (3): `and`, `or`, `not`
 
-**Type Predicates** (6): `number?`, `string?`, `list?`, `nil?`, `symbol?`, `bool?`
+**Type Predicates** (8): `number?`, `string?`, `list?`, `nil?`, `symbol?`, `bool?`, `map?`, `keyword?`
 
 **List Operations** (6): `cons`, `car`, `cdr`, `list`, `length`, `empty?`
+
+**Map Operations** (11): `map-new`, `map-get`, `map-set`, `map-has?`, `map-keys`, `map-values`, `map-entries`, `map-merge`, `map-remove`, `map-empty?`, `map-size`
 
 **Console I/O** (2): `print`, `println`
 
@@ -54,6 +58,8 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - **Sandboxed I/O**: Safe filesystem and network access with capability-based security
 - **First-Class Help System**: Built-in help for all functions, extensible to user code
 - **Function Docstrings**: Define functions with documentation: `(define (f x) "docs" body)`
+- **Structured Data**: Maps with keywords for LLM-friendly data structures
+- **JSON Support**: Built-in JSON encoding and decoding via stdlib modules
 
 ## Quick Start
 
@@ -194,6 +200,48 @@ The interpreter has a first-class help system:
 (error-msg result)  ; => "something went wrong"
 ```
 
+### Maps and Keywords (Structured Data)
+```lisp
+; Create a map with keywords as keys
+(define person {:name "Alice" :age 30 :city "NYC"})
+(println person)  ; => {:age 30 :city "NYC" :name "Alice"}
+
+; Get values by keyword
+(map-get person :name)  ; => "Alice"
+(map-get person :missing "unknown")  ; => "unknown" (with default)
+
+; Create new map with updated value (immutable)
+(define older-person (map-set person :age 31))
+(map-get person :age)  ; => 30 (original unchanged)
+(map-get older-person :age)  ; => 31
+
+; Map operations
+(map-keys person)  ; => (:age :city :name)
+(map-values person)  ; => (30 "NYC" "Alice")
+(map-size person)  ; => 3
+(map-has? person :name)  ; => #t
+
+; Merge maps
+(define extra {:country "USA" :active #t})
+(define merged (map-merge person extra))
+; merged => {:active #t :age 30 :city "NYC" :country "USA" :name "Alice"}
+```
+
+### JSON Encoding and Decoding
+```lisp
+; Encode Lisp values to JSON
+(define person {:name "Bob" :scores '(90 85 95)})
+(define json-str (json:encode person))
+; json-str => "{\"name\":\"Bob\",\"scores\":[90,85,95]}"
+
+; Decode JSON back to Lisp values
+(define decoded (json:decode json-str))
+(map-get decoded :name)  ; => "Bob"
+
+; Pretty-print JSON with indentation
+(println (json:pretty json-str))
+```
+
 ### Sandboxed File I/O
 ```lisp
 ; Write a file
@@ -239,32 +287,58 @@ The interpreter has a first-class help system:
 ```
 lisp-llm-sandbox/
 ├── src/
-│   ├── main.rs          - REPL implementation, I/O built-in registration
-│   ├── lib.rs           - Library exports
-│   ├── value.rs         - Value type definitions (with docstring support)
-│   ├── error.rs         - Error types
-│   ├── parser.rs        - S-expression parser (nom-based)
-│   ├── env.rs           - Environment/scope management
-│   ├── eval.rs          - Evaluator with TCO (with docstring extraction)
-│   ├── builtins.rs      - Built-in functions (36 total) + help system
-│   ├── macros.rs        - Macro system
-│   ├── tools.rs         - Tool trait for extensibility
-│   ├── help.rs          - Help documentation system (NEW)
-│   ├── sandbox.rs       - Sandboxed I/O with cap-std (NEW)
-│   ├── config.rs        - Configuration and constants (NEW)
-│   └── stdlib.lisp      - Standard library with docstrings (21 functions)
+│   ├── main.rs              - REPL implementation, I/O built-in registration
+│   ├── lib.rs               - Library exports
+│   ├── value.rs             - Value type definitions (with Keywords and Maps)
+│   ├── error.rs             - Error types
+│   ├── parser.rs            - S-expression parser (nom-based, supports :keywords and {:map})
+│   ├── env.rs               - Environment/scope management
+│   ├── eval.rs              - Evaluator with TCO
+│   ├── builtins/
+│   │   ├── mod.rs           - Builtin module coordination
+│   │   ├── arithmetic.rs    - Math operators
+│   │   ├── comparison.rs    - Comparison operators
+│   │   ├── logic.rs         - Boolean logic
+│   │   ├── types.rs         - Type predicates and checks
+│   │   ├── lists.rs         - List operations
+│   │   ├── maps.rs          - Map operations (NEW)
+│   │   ├── console.rs       - I/O functions
+│   │   ├── filesystem.rs    - File operations
+│   │   ├── network.rs       - HTTP operations
+│   │   ├── testing.rs       - Testing utilities
+│   │   ├── errors.rs        - Error handling
+│   │   └── help.rs          - Help system
+│   ├── stdlib/
+│   │   ├── mod.rs           - Stdlib module coordination
+│   │   ├── json.rs          - JSON encoding/decoding (NEW)
+│   │   └── lisp/
+│   │       ├── core.lisp    - Higher-order functions and list utilities
+│   │       ├── math.lisp    - Math functions
+│   │       ├── string.lisp  - String operations
+│   │       ├── test.lisp    - Testing framework
+│   │       └── http.lisp    - HTTP utilities
+│   ├── macros.rs            - Macro system
+│   ├── tools.rs             - Tool trait for extensibility
+│   ├── help.rs              - Help documentation system
+│   ├── sandbox.rs           - Sandboxed I/O with cap-std
+│   ├── config.rs            - Configuration and constants
+│   ├── highlighter.rs       - REPL syntax highlighting
+│   ├── stdlib_registry.rs   - Stdlib function documentation registry
+│   └── env.rs               - Environment/scope management
 ├── tests/
-│   ├── integration_test.rs  - Complete integration tests (17 tests)
-│   ├── stdlib_tests.rs      - Standard library tests (21 tests)
-│   └── repl_integration.rs  - REPL infrastructure test
+│   ├── integration_test.rs  - Complete integration tests
+│   ├── stdlib_tests.rs      - Standard library tests
+│   ├── builtins_test.rs     - Builtin function tests
+│   └── string_tests.rs      - String manipulation tests
 ├── examples/
-│   ├── quicksort.lisp       - Sorting algorithm
-│   ├── factorial.lisp       - Recursive functions
-│   ├── fibonacci.lisp       - Multiple implementations
+│   ├── quicksort.lisp           - Sorting algorithm
+│   ├── factorial.lisp           - Recursive functions
+│   ├── fibonacci.lisp           - Multiple implementations
 │   ├── functional_programming.lisp - FP patterns
-│   └── data_processing.lisp - Data analysis
-├── Cargo.toml           - Dependencies and metadata
-└── README.md            - This file
+│   ├── data_processing.lisp     - Data analysis
+│   └── maps_and_json.lisp       - Maps and JSON usage (NEW)
+├── Cargo.toml               - Dependencies and metadata
+└── README.md                - This file
 ```
 
 ## Architecture
@@ -308,8 +382,10 @@ enum Value {
     Bool(bool),
     Symbol(String),
     String(String),
+    Keyword(String),                          // Self-evaluating keywords (:name)
     List(Vec<Value>),
-    Lambda { params, body, env, docstring },  // docstring support
+    Map(HashMap<String, Value>),              // Key-value structures
+    Lambda { params, body, env, docstring },  // Docstring support
     Macro { params, body },
     BuiltIn(fn(&[Value]) -> Result<Value, EvalError>),
     Error(String),
@@ -324,28 +400,22 @@ enum Value {
 cargo test
 ```
 
-**Current Status**: 260+ tests passing ✓
+**Current Status**: 270+ tests passing ✓
 
 ### Test Coverage
-- Value display formatting (5 tests)
-- Environment scoping (5 tests)
-- Parser correctness (17 tests)
-- Built-in functions (29 tests)
-- Evaluator (48 tests including TCO)
-- Macros (5 tests)
-- Tools trait (3 tests)
-- Standard library (21 tests)
-- Integration tests (17 tests)
-- REPL infrastructure (1 test)
-- Help system (4 tests, NEW)
-- Sandbox I/O (9 tests, NEW)
+- Unit tests (88 tests)
+- Integration tests (118 tests)
+- Standard library tests (17 tests)
+- Sandbox I/O tests (1 test)
+- Builtin function tests (21 tests)
+- String manipulation tests (25 tests)
 
 ### Code Quality
 
 All code passes quality checks:
-- ✅ `cargo clippy --all-targets` - No warnings
+- ✅ `cargo clippy --all-targets` - Zero warnings
 - ✅ `cargo fmt --check` - Properly formatted
-- ✅ `cargo test` - 243 tests passing
+- ✅ `cargo test` - 270 tests passing
 - ✅ `cargo build --release` - Clean build
 
 ## Dependencies
@@ -357,6 +427,9 @@ All code passes quality checks:
 - **ureq** (2.10.0) - HTTP client with timeout support
 - **clap** (4.5.51) - CLI argument parsing
 - **serial_test** (3.2.0) - Test synchronization
+- **serde** (1.0) - Serialization framework
+- **serde_json** (1.0) - JSON encoding and decoding
+- **termimad** (0.28) - Markdown rendering in terminal
 
 ## Implementation Phases
 
@@ -378,41 +451,49 @@ All code passes quality checks:
 - **Deep recursion**: TCO enables unlimited depth
 - **Memory**: Efficient Rc-based sharing
 
-## Standard Library (stdlib.lisp)
+## Standard Library (Lisp and Rust Modules)
 
-The interpreter includes a comprehensive standard library with 21 functions:
+The interpreter includes a comprehensive standard library with 46+ functions organized into focused modules:
 
-### Higher-Order Functions
-- `map` - Transform each element: `(map square '(1 2 3))` → `(1 4 9)`
-- `filter` - Keep matching elements: `(filter even? '(1 2 3 4))` → `(2 4)`
-- `reduce` - Accumulate values: `(reduce + 0 '(1 2 3))` → `6`
-- `compose` - Combine functions: `((compose inc double) 5)` → `11`
-- `partial` - Partial application: `(define add5 (partial + 5))`
+### Core Library (core.lisp)
+**Higher-Order Functions** (5): `map`, `filter`, `reduce`, `compose`, `partial`
 
-### List Utilities
-- `reverse` - Reverse a list
-- `append` - Concatenate two lists
-- `member` - Check membership
-- `nth` - Get element at index
-- `last` - Get last element
-- `take` - Get first n elements
-- `drop` - Skip first n elements
-- `zip` - Combine two lists into pairs
+**List Utilities** (9): `reverse`, `append`, `member`, `nth`, `last`, `take`, `drop`, `zip`, `reverse-helper`
 
-### Predicates
-- `all` - Check if all elements match
-- `any` - Check if any element matches
-- `count` - Count matching elements
+**Map Helpers** (6): `map:query`, `map:select`, `map:update`, `map:filter`, `map:from-entries`, `map:map-values`
 
-### Math Utilities
-- `abs`, `min`, `max` - Basic math
-- `square`, `cube` - Powers
-- `even?`, `odd?` - Number predicates
-- `sum`, `product` - List aggregations
-- `factorial` - Classic factorial
+### Math Library (math.lisp)
+**Basic** (5): `abs`, `min`, `max`, `square`, `cube`
 
-### Sequences
-- `range` - Generate number sequences: `(range 0 10)`
+**Predicates** (2): `even?`, `odd?`
+
+**Aggregations** (3): `sum`, `product`, `factorial`
+
+**List Predicates** (3): `all`, `any`, `count`
+
+**Sequence Generation** (1): `range`
+
+### String Library (string.lisp)
+**Transformation** (4): `string-capitalize`, `string-concat`, `string-reverse`, `string-repeat`
+
+**Parsing** (2): `string-words`, `string-lines`
+
+**Padding** (1): `string-pad-left`
+
+### Testing Library (test.lisp)
+**Registration**: `define-test` (macro for defining tests)
+
+**Utilities** (3): `print-test-summary`, `print-test-details`, `run-tests`
+
+### HTTP Library (http.lisp)
+**Helpers** (3): `http:check-status`, `http:body`, `http:status`
+
+### JSON Module (json.rs, Rust-native)
+**Encoding**: `json:encode` - Convert Lisp values to JSON strings
+
+**Decoding**: `json:decode` - Parse JSON strings to Lisp values
+
+**Formatting**: `json:pretty` - Pretty-print JSON with indentation
 
 ## Example Programs
 

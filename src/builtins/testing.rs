@@ -134,7 +134,7 @@ fn values_equal(a: &Value, b: &Value) -> bool {
                 return false;
             }
             x.iter()
-                .all(|(k, v)| y.get(k).map_or(false, |v2| values_equal(v, v2)))
+                .all(|(k, v)| y.get(k).is_some_and(|v2| values_equal(v, v2)))
         }
         (Value::Error(x), Value::Error(y)) => x == y,
         _ => false,

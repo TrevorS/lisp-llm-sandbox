@@ -246,7 +246,7 @@ pub fn format_quick_reference() -> String {
 
     let all_categories = preferred_order
         .into_iter()
-        .chain(other_categories.into_iter())
+        .chain(other_categories)
         .collect::<Vec<_>>();
 
     for category in all_categories {
