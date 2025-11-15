@@ -183,12 +183,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("=> {}", LispHelper::highlight_output(&result));
                             }
                             Err(e) => {
-                                eprintln!("Error: {}", e);
+                                // Don't add prefix - error already formats itself
+                                eprintln!("{}", e);
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Parse error: {}", e);
+                        // Don't add prefix - parser already adds "Parse error:"
+                        eprintln!("{}", e);
                     }
                 }
             }
