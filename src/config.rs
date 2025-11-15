@@ -3,10 +3,31 @@
 
 use std::path::PathBuf;
 
-#[allow(dead_code)]
 pub const VERSION: &str = "1.0.0";
 pub const WELCOME_MESSAGE: &str = "Lisp Interpreter v1.0";
 pub const WELCOME_SUBTITLE: &str = "A production-ready Scheme-flavored Lisp in Rust";
+
+pub const WELCOME_FOOTER: &str = r#"
+Quick Start Examples:
+  (+ 1 2 3)                              → 6
+  (map (lambda (x) (* x 2)) '(1 2 3))   → (2 4 6)
+  (define (fib n) ...)                   → Define recursive function
+  (http-request "https://api.example.com" {:method "GET"})  → HTTP with options
+
+LLM-Optimized Features:
+  • Maps with keywords: {:name "Alice" :age 30}
+  • Structured I/O returns maps with metadata
+  • 46 stdlib functions auto-loaded (map, filter, reduce, etc.)
+  • Macros and compile-time code transformation
+  • Tail-call optimization for deep recursion
+
+Available Commands:
+  (help)                    - Show all 130+ functions by category
+  (help 'function-name)     - Detailed help for a specific function
+  (quit) or (exit)          - Exit the REPL
+
+Type (help) to see all available functions, or dive in with any Lisp expression!
+"#;
 
 // ============================================================================
 // I/O Sandboxing Configuration
@@ -53,35 +74,3 @@ pub struct IoConfig {
     pub network: NetConfig,
 }
 
-#[allow(dead_code)]
-pub const HELP_TEXT: &str = r#"
-Available commands:
-  (quit) or (exit)     - Exit the REPL
-  (help)               - Show this help message
-  (builtins)           - List all built-in functions
-  (clear)              - Clear the screen
-
-Type any Lisp expression to evaluate it. Use Ctrl-D or (quit) to exit.
-Full documentation available at: https://github.com/anthropics/lisp-llm-sandbox
-"#;
-
-#[allow(dead_code)]
-pub const BUILTINS_SUMMARY: &str = r#"
-Built-in Functions (36 total):
-
-Arithmetic:     + - * / %
-Comparison:     = < > <= >=
-Logic:          and or not
-Lists:          cons car cdr list length empty?
-Predicates:     number? string? list? nil? symbol? bool?
-
-Console I/O:    print println
-Filesystem:     read-file write-file file-exists? file-size list-files
-Network:        http-get http-post
-
-Error:          error error? error-msg
-Control:        if begin let define lambda quote
-Macros:         defmacro quasiquote unquote unquote-splicing
-
-Type (help) for more information.
-"#;

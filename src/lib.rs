@@ -133,5 +133,6 @@ pub mod macros;
 pub mod parser;
 pub mod sandbox;
 pub mod stdlib;
+pub mod stdlib_registry;
 pub mod tools;
 pub mod value;

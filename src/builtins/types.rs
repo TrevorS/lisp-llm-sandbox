@@ -1,4 +1,4 @@
-//! Type predicates: number?, string?, list?, nil?, symbol?, bool?
+//! Type predicates: number?, string?, list?, nil?, symbol?, bool?, map?, keyword?
 //!
 //! Functions for checking the type of a value.
 //!
@@ -8,6 +8,8 @@
 //! - `nil?`: Test if value is nil
 //! - `symbol?`: Test if value is a symbol
 //! - `bool?`: Test if value is a boolean (#t or #f)
+//! - `map?`: Test if value is a map (hashmap)
+//! - `keyword?`: Test if value is a keyword (:name)
 //!
 //! All return boolean (#t or #f)
 
@@ -144,4 +146,50 @@ pub fn builtin_bool_p(args: &[Value]) -> Result<Value, EvalError> {
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Bool(_))))
+}
+
+#[builtin(name = "map?", category = "Type predicates", related(list?, keyword?))]
+/// Tests if val is a map (hashmap).
+///
+/// # Examples
+///
+/// ```lisp
+/// (map? {:a 1 :b 2}) => #t
+/// (map? {}) => #t
+/// (map? '(1 2 3)) => #f
+/// (map? "string") => #f
+/// ```
+///
+/// # See Also
+///
+/// list?, keyword?
+pub fn builtin_map_p(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::ArityMismatch);
+    }
+
+    Ok(Value::Bool(matches!(args[0], Value::Map(_))))
+}
+
+#[builtin(name = "keyword?", category = "Type predicates", related(symbol?, map?))]
+/// Tests if val is a keyword (:name).
+///
+/// # Examples
+///
+/// ```lisp
+/// (keyword? :a) => #t
+/// (keyword? :foo) => #t
+/// (keyword? 'a) => #f
+/// (keyword? "a") => #f
+/// ```
+///
+/// # See Also
+///
+/// symbol?, map?
+pub fn builtin_keyword_p(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::ArityMismatch);
+    }
+
+    Ok(Value::Bool(matches!(args[0], Value::Keyword(_))))
 }

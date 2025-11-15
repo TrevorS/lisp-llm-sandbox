@@ -19,6 +19,9 @@ use std::cell::RefCell;
 thread_local! {
     /// Holds doc comments (;;;) that precede a top-level expression
     static PENDING_DOCS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    /// Flag to skip auto-registration of help entries during stdlib loading
+    /// This prevents stdlib functions from being registered as "User Defined"
+    static SKIP_HELP_REGISTRATION: RefCell<bool> = const { RefCell::new(false) };
 }
 
 /// Store doc comments to be attached to the next defined function
@@ -29,6 +32,16 @@ pub fn set_pending_docs(docs: Vec<String>) {
 /// Retrieve and clear pending doc comments
 pub fn take_pending_docs() -> Vec<String> {
     PENDING_DOCS.with(|d| std::mem::take(&mut *d.borrow_mut()))
+}
+
+/// Check if help registration is currently skipped (during stdlib loading)
+pub fn should_skip_help_registration() -> bool {
+    SKIP_HELP_REGISTRATION.with(|flag| *flag.borrow())
+}
+
+/// Set the help registration skip flag
+pub fn set_skip_help_registration(skip: bool) {
+    SKIP_HELP_REGISTRATION.with(|flag| *flag.borrow_mut() = skip);
 }
 
 // ============================================================================

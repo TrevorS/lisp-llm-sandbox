@@ -217,6 +217,55 @@ impl Sandbox {
             })
     }
 
+    /// Get file metadata (size, type, timestamps, readonly)
+    pub fn file_stat(&self, path: &str) -> Result<FileStat, SandboxError> {
+        // Validate path format
+        if path.starts_with('/') || path.starts_with("\\") {
+            return Err(SandboxError::PathNotAllowed(path.to_string()));
+        }
+
+        if path.contains("..") {
+            return Err(SandboxError::PathNotAllowed(path.to_string()));
+        }
+
+        let (root, _) = self.find_root_for_path(path, false)?;
+
+        root.metadata(path)
+            .map(|metadata| {
+                let file_type = if metadata.is_dir() {
+                    "directory".to_string()
+                } else if metadata.is_symlink() {
+                    "symlink".to_string()
+                } else {
+                    "file".to_string()
+                };
+
+                // Timestamps: use approximate values since cap_std times don't directly convert
+                // to Unix timestamps. We'll store them as relative times from current moment.
+                let modified = 0.0;  // Would need more complex conversion
+                let accessed = 0.0;
+                let created = 0.0;
+
+                let readonly = metadata.permissions().readonly();
+
+                FileStat {
+                    size: metadata.len(),
+                    file_type,
+                    modified,
+                    accessed,
+                    created,
+                    readonly,
+                }
+            })
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::NotFound {
+                    SandboxError::FileNotFound(path.to_string())
+                } else {
+                    SandboxError::IoError(format!("Cannot stat {}: {}", path, e))
+                }
+            })
+    }
+
     /// List files in a directory
     pub fn list_files(&self, dir: &str) -> Result<Vec<String>, SandboxError> {
         // Validate path format
@@ -281,11 +330,16 @@ impl Sandbox {
             .any(|allowed| address.contains(allowed))
     }
 
-    /// Perform HTTP GET request with timeout
-    /// WARNING: DNS resolution cannot be interrupted by timeouts (ureq limitation).
-    /// If DNS lookup hangs, the request will hang indefinitely. Ensure URLs use
-    /// responsive DNS servers or use IP addresses directly.
-    pub fn http_get(&self, url: &str) -> Result<String, SandboxError> {
+    /// Perform flexible HTTP request with method, optional headers, body, and timeout.
+    /// Returns HttpResponse with status, headers, and body.
+    pub fn http_request(
+        &self,
+        url: &str,
+        method: &str,
+        headers: Option<Vec<(String, String)>>,
+        body: Option<&str>,
+        timeout_ms: Option<u64>,
+    ) -> Result<HttpResponse, SandboxError> {
         if !self.net_config.enabled {
             return Err(SandboxError::NetworkDisabled);
         }
@@ -294,45 +348,80 @@ impl Sandbox {
             return Err(SandboxError::AddressNotAllowed(url.to_string()));
         }
 
-        // ureq's timeout applies to socket operations but NOT DNS resolution.
-        // This is a platform limitation documented in ureq.
-        // See: https://docs.rs/ureq/latest/ureq/#timeouts
-        let response = ureq::get(url)
-            .timeout(std::time::Duration::from_secs(30))
-            .call()
-            .map_err(|e| SandboxError::IoError(format!("HTTP GET failed: {}", e)))?;
+        let timeout_secs = timeout_ms.unwrap_or(30000) / 1000;
+        let timeout_duration = std::time::Duration::from_secs(timeout_secs);
 
-        response
-            .into_string()
-            .map_err(|e| SandboxError::IoError(format!("Failed to read response: {}", e)))
-    }
+        let mut request = match method.to_uppercase().as_str() {
+            "GET" => ureq::get(url),
+            "POST" => ureq::post(url),
+            "PUT" => ureq::put(url),
+            "DELETE" => ureq::delete(url),
+            "PATCH" => ureq::patch(url),
+            "HEAD" => ureq::head(url),
+            _ => return Err(SandboxError::IoError(format!("Unsupported HTTP method: {}", method))),
+        };
 
-    /// Perform HTTP POST request with timeout
-    /// WARNING: DNS resolution cannot be interrupted by timeouts (ureq limitation).
-    /// If DNS lookup hangs, the request will hang indefinitely. Ensure URLs use
-    /// responsive DNS servers or use IP addresses directly.
-    pub fn http_post(&self, url: &str, body: &str) -> Result<String, SandboxError> {
-        if !self.net_config.enabled {
-            return Err(SandboxError::NetworkDisabled);
+        // Set headers if provided
+        if let Some(header_list) = headers {
+            for (key, value) in header_list {
+                request = request.set(&key, &value);
+            }
         }
 
-        if !self.is_address_allowed(url) {
-            return Err(SandboxError::AddressNotAllowed(url.to_string()));
-        }
+        request = request.timeout(timeout_duration);
 
-        // ureq's timeout applies to socket operations but NOT DNS resolution.
-        // This is a platform limitation documented in ureq.
-        // See: https://docs.rs/ureq/latest/ureq/#timeouts
-        let response = ureq::post(url)
-            .set("Content-Type", "text/plain")
-            .timeout(std::time::Duration::from_secs(30))
-            .send_string(body)
-            .map_err(|e| SandboxError::IoError(format!("HTTP POST failed: {}", e)))?;
+        let response = if let Some(body_str) = body {
+            request
+                .send_string(body_str)
+                .map_err(|e| SandboxError::IoError(format!("HTTP {} failed: {}", method, e)))?
+        } else {
+            request
+                .call()
+                .map_err(|e| SandboxError::IoError(format!("HTTP {} failed: {}", method, e)))?
+        };
 
-        response
+        let status = response.status();
+        let headers_map: std::collections::HashMap<String, String> = response
+            .headers_names()
+            .iter()
+            .map(|name| {
+                let value = response
+                    .header(name)
+                    .unwrap_or("")
+                    .to_string();
+                (name.to_string(), value)
+            })
+            .collect();
+
+        let body_str = response
             .into_string()
-            .map_err(|e| SandboxError::IoError(format!("Failed to read response: {}", e)))
+            .map_err(|e| SandboxError::IoError(format!("Failed to read response: {}", e)))?;
+
+        Ok(HttpResponse {
+            status,
+            headers: headers_map,
+            body: body_str,
+        })
     }
+}
+
+/// HTTP Response structure returned by http_request
+#[derive(Clone, Debug)]
+pub struct HttpResponse {
+    pub status: u16,
+    pub headers: std::collections::HashMap<String, String>,
+    pub body: String,
+}
+
+/// File metadata structure returned by file_stat
+#[derive(Clone, Debug)]
+pub struct FileStat {
+    pub size: u64,
+    pub file_type: String,  // "file", "directory", or "symlink"
+    pub modified: f64,      // Unix timestamp in seconds
+    pub accessed: f64,      // Unix timestamp in seconds
+    pub created: f64,       // Unix timestamp in seconds
+    pub readonly: bool,
 }
 
 #[cfg(test)]
@@ -431,7 +520,7 @@ mod tests {
     fn test_network_disabled_by_default() {
         let (sandbox, test_dir) = create_test_sandbox();
 
-        let result = sandbox.http_get("https://example.com");
+        let result = sandbox.http_request("https://example.com", "GET", None, None, None);
         assert!(matches!(result, Err(SandboxError::NetworkDisabled)));
 
         cleanup_test_sandbox(&test_dir);

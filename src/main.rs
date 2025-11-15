@@ -9,13 +9,15 @@ mod macros;
 mod parser;
 mod sandbox;
 mod stdlib;
+mod stdlib_registry;
 mod tools;
 mod value;
 
 use builtins::{register_builtins, set_sandbox_storage};
 use stdlib::register_stdlib;
+use stdlib_registry::register_stdlib_functions;
 use clap::Parser;
-use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE};
+use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE, WELCOME_FOOTER};
 use env::Environment;
 use eval::eval_with_macros;
 use highlighter::LispHelper;
@@ -85,16 +87,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     eval::register_special_forms_part1();
     eval::register_special_forms_part2();
 
+    // Register stdlib function documentation with proper categorization
+    register_stdlib_functions();
+
     // Set environment for help system to enable lookup of user-defined functions
     help::set_current_env(Some(env.clone()));
 
-    // Conditionally load standard library
+    // Conditionally load standard library modules
     if !args.no_stdlib {
-        let stdlib = include_str!("stdlib.lisp");
-        match load_stdlib(stdlib, env.clone(), &mut macro_reg) {
-            Ok(_) => {} // Silently succeed
-            Err(e) => eprintln!("Warning: Failed to load stdlib: {}", e),
+        // Load stdlib modules in order: core, math, string, test, http
+        let modules = [
+            ("core", include_str!("stdlib/lisp/core.lisp")),
+            ("math", include_str!("stdlib/lisp/math.lisp")),
+            ("string", include_str!("stdlib/lisp/string.lisp")),
+            ("test", include_str!("stdlib/lisp/test.lisp")),
+            ("http", include_str!("stdlib/lisp/http.lisp")),
+        ];
+
+        // Skip automatic help registration during stdlib loading
+        // Stdlib functions will be registered with proper categorization by stdlib_registry
+        parser::set_skip_help_registration(true);
+
+        for (module_name, module_code) in &modules {
+            match load_stdlib(module_code, env.clone(), &mut macro_reg) {
+                Ok(_) => {} // Silently succeed
+                Err(e) => eprintln!("Warning: Failed to load stdlib module {}: {}", module_name, e),
+            }
         }
+
+        // Re-enable help registration for user code
+        parser::set_skip_help_registration(false);
     }
 
     // Check if we're running a script file or REPL
@@ -121,9 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Print welcome message
     println!("{}", WELCOME_MESSAGE);
     println!("{}", WELCOME_SUBTITLE);
-    println!("Type (quit) or (exit) to exit");
-    println!("Type (help) for function help, (help 'symbol) for details");
-    println!("Press Enter for multi-line input when expression is incomplete\n");
+    println!("{}", WELCOME_FOOTER);
 
     // REPL loop
     loop {

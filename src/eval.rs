@@ -241,17 +241,19 @@ fn eval_define(
                 inline_docstring
             };
 
-            // Register help entry if we have documentation
+            // Register help entry if we have documentation (unless we're loading stdlib)
             if let Some(ref doc) = docstring {
-                let signature = format!("({} {})", name, params.join(" "));
-                crate::help::register_help(crate::help::HelpEntry {
-                    name: name.clone(),
-                    signature,
-                    description: doc.clone(),
-                    examples: vec![], // Could parse from doc later
-                    related: vec![],
-                    category: "User Defined".to_string(),
-                });
+                if !parser::should_skip_help_registration() {
+                    let signature = format!("({} {})", name, params.join(" "));
+                    crate::help::register_help(crate::help::HelpEntry {
+                        name: name.clone(),
+                        signature,
+                        description: doc.clone(),
+                        examples: vec![], // Could parse from doc later
+                        related: vec![],
+                        category: "User Defined".to_string(),
+                    });
+                }
             }
 
             // Create lambda

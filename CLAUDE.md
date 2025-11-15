@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
 - **237 comprehensive tests** covering all major features
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **32 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
-- **27 standard library functions** in pure Lisp (higher-order functions, list utilities, predicates, math)
-- **Complete help system** with markdown documentation for all 67 functions (8 special forms + 32 builtins + 27 stdlib)
+- **33 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
+- **41 standard library functions** in pure Lisp organized into 5 focused modules (core, math, string, test, http)
+- **Complete help system** with markdown documentation for all 82 functions (8 special forms + 33 builtins + 41 stdlib)
 - **Markdown-rendered help** with syntax highlighting via termimad
 
 ## Development Commands
@@ -52,12 +52,24 @@ The heart of the interpreter uses **trampolining for tail-call optimization** (T
 
 ### Value System (src/value.rs)
 The `Value` enum represents all Lisp types. Key types:
+- **Number**: f64 numeric values
+- **String**: Immutable string data
+- **Symbol**: Identifiers like `foo` or `+`
+- **Keyword**: Self-evaluating symbols like `:name` for map keys
+- **Bool**: #t and #f boolean values
+- **List**: Linked list of Values (cons cells)
+- **Map**: HashMap<String, Value> for key-value data structures
 - **Lambda**: Captures environment + docstring (for help system)
 - **Macro**: Similar to Lambda but for compile-time transformation
 - **BuiltIn**: Rust function pointers for native implementation
 - **Error**: Catchable error values (not exceptions)
+- **Nil**: Empty list / null value
 
 When adding new features, determine if they belong as Values, builtins, or special forms.
+
+**Recent Additions**:
+- **Map and Keyword types** enable structured data and named parameters (LLM-first design)
+- **Type predicates** added: `map?` and `keyword?` join existing predicates like `number?`, `string?`, `list?`, `symbol?`, `bool?`, `nil?`
 
 ### Parser (src/parser.rs)
 Uses **nom parser combinators**. Key points:
@@ -78,9 +90,10 @@ The sandbox is thread-local and must be configured at startup. When adding new I
 
 ### Help System (src/help.rs)
 **Thread-local registry** with markdown documentation for 67 total functions:
-- **32 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+- **33 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+  - New additions: `map?`, `keyword?` (type predicates), `http-request` (flexible HTTP), `file-stat` (file metadata)
 - **8 special forms**: Registered in `eval.rs` via `register_special_forms_part1()` and `register_special_forms_part2()`
-- **27 stdlib functions**: Enhanced docstrings in `src/stdlib.lisp` with parameters, returns, complexity analysis, examples
+- **41 stdlib functions**: ;;; comment documentation in 5 focused modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
 
 **When adding new built-ins:**
 1. Create function in appropriate `src/builtins/*.rs` category module
@@ -93,15 +106,36 @@ The sandbox is thread-local and must be configured at startup. When adding new I
 - Environment-based for user-defined functions (via CURRENT_ENV)
 - Users access via `(help)` for quick reference or `(help 'function-name)` for details
 
-### Standard Library (src/stdlib.lisp)
-27 pure Lisp functions loaded at startup (unless `--no-stdlib` is used):
-- **Higher-order** (5): `map`, `filter`, `reduce`, `compose`, `partial` - with O(n) time complexity
-- **List utilities** (9): `reverse`, `append`, `member`, `nth`, `last`, `take`, `drop`, `zip`, `reverse-helper`
-- **Predicates** (3): `all`, `any`, `count` - with short-circuit evaluation notes
-- **Sequences** (1): `range` - generates integer lists
-- **Math** (9): `abs`, `min`, `max`, `square`, `cube`, `even?`, `odd?`, `sum`, `product`, `factorial`
+### Standard Library (src/stdlib/lisp/)
+The standard library has been reorganized into 5 focused modules, loaded at startup (unless `--no-stdlib` is used):
 
-Each function has enhanced docstrings with Parameters, Returns, Time Complexity, Examples, and Notes sections.
+**Core Functions (core.lisp)**:
+- **Higher-order** (5): `map`, `filter`, `reduce`, `compose`, `partial`
+- **List utilities** (9): `reverse`, `append`, `member`, `nth`, `last`, `take`, `drop`, `zip`, `reverse-helper`
+- **Map helpers** (6): `map:query`, `map:select`, `map:update`, `map:filter`, `map:from-entries`, `map:map-values`
+
+**Math Functions (math.lisp)**:
+- **Basic** (5): `abs`, `min`, `max`, `square`, `cube`
+- **Predicates** (2): `even?`, `odd?`
+- **Aggregations** (3): `sum`, `product`, `factorial`
+- **List predicates** (3): `all`, `any`, `count`
+- **Sequence generation** (1): `range`
+
+**String Functions (string.lisp)**:
+- **Transformation** (4): `string-capitalize`, `string-concat`, `string-reverse`, `string-repeat`
+- **Parsing** (2): `string-words`, `string-lines`
+- **Padding** (1): `string-pad-left`
+
+**Testing Framework (test.lisp)**:
+- **Registration**: `define-test` (macro)
+- **Test utilities**: `print-test-summary`, `print-test-details`
+- **Improvements**: Testing framework now returns maps instead of alists
+
+**HTTP Utilities (http.lisp)**:
+- **Helpers** (3): `http:check-status`, `http:body`, `http:status`
+- Build on new `http-request` builtin for flexible HTTP operations
+
+Each function has ;;; comment documentation with Parameters, Returns, Time Complexity, Examples, and Notes sections.
 
 ## Important Patterns & Constraints
 

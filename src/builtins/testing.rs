@@ -20,6 +20,7 @@ use crate::eval::eval;
 use crate::value::Value;
 use lisp_macros::builtin;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 // ============================================================================
 // Test Registry
@@ -103,23 +104,7 @@ pub fn builtin_assert_equal(args: &[Value]) -> Result<Value, EvalError> {
     };
 
     // Compare values based on their types
-    let is_equal = match (actual, expected) {
-        (Value::Number(a), Value::Number(b)) => a == b,
-        (Value::Bool(a), Value::Bool(b)) => a == b,
-        (Value::String(a), Value::String(b)) => a == b,
-        (Value::Symbol(a), Value::Symbol(b)) => a == b,
-        (Value::Nil, Value::Nil) => true,
-        (Value::List(a), Value::List(b)) => {
-            if a.len() != b.len() {
-                false
-            } else {
-                // Recursively compare list elements
-                a.iter().zip(b.iter()).all(|(x, y)| values_equal(x, y))
-            }
-        }
-        (Value::Error(a), Value::Error(b)) => a == b,
-        _ => false,
-    };
+    let is_equal = values_equal(actual, expected);
 
     if is_equal {
         Ok(Value::Bool(true))
@@ -138,9 +123,17 @@ fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Bool(x), Value::Bool(y)) => x == y,
         (Value::String(x), Value::String(y)) => x == y,
         (Value::Symbol(x), Value::Symbol(y)) => x == y,
+        (Value::Keyword(x), Value::Keyword(y)) => x == y,
         (Value::Nil, Value::Nil) => true,
         (Value::List(x), Value::List(y)) => {
             x.len() == y.len() && x.iter().zip(y.iter()).all(|(a, b)| values_equal(a, b))
+        }
+        (Value::Map(x), Value::Map(y)) => {
+            // Compare maps: same keys with equal values
+            if x.len() != y.len() {
+                return false;
+            }
+            x.iter().all(|(k, v)| y.get(k).map_or(false, |v2| values_equal(v, v2)))
         }
         (Value::Error(x), Value::Error(y)) => x == y,
         _ => false,
@@ -228,14 +221,15 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
 }
 
 #[builtin(name = "run-all-tests", category = "Testing", related(register-test, clear-tests))]
-/// Execute all registered tests and return structured results.
+/// Execute all registered tests and return structured results as a map.
 ///
-/// Returns an association list with: ((passed N) (failed M) (total T) (tests ...))
+/// Returns a map with: {:passed N :failed M :total T :tests [...]}
+/// Each test in :tests is a map with :name, :status, :message keys.
 ///
 /// # Examples
 ///
 /// ```lisp
-/// (run-all-tests) => ((passed 10) (failed 2) ...)
+/// (run-all-tests) => {:passed 10 :failed 2 :total 12 :tests [...]}
 /// ```
 ///
 /// # See Also
@@ -262,62 +256,51 @@ pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
                 Ok(Value::Bool(true)) | Ok(Value::Nil) => {
                     // Test passed
                     passed += 1;
-                    results.push(Value::List(vec![
-                        Value::String(name.clone()),
-                        Value::Symbol("passed".to_string()),
-                        Value::Nil,
-                    ]));
+                    let mut result_map = HashMap::new();
+                    result_map.insert("name".to_string(), Value::String(name.clone()));
+                    result_map.insert("status".to_string(), Value::Symbol("passed".to_string()));
+                    result_map.insert("message".to_string(), Value::String(String::new()));
+                    results.push(Value::Map(result_map));
                 }
                 Ok(Value::Error(msg)) => {
                     // Test failed with assertion error
                     failed += 1;
-                    results.push(Value::List(vec![
-                        Value::String(name.clone()),
-                        Value::Symbol("failed".to_string()),
-                        Value::String(msg),
-                    ]));
+                    let mut result_map = HashMap::new();
+                    result_map.insert("name".to_string(), Value::String(name.clone()));
+                    result_map.insert("status".to_string(), Value::Symbol("failed".to_string()));
+                    result_map.insert("message".to_string(), Value::String(msg));
+                    results.push(Value::Map(result_map));
                 }
                 Ok(_) => {
                     // Test returned non-error value, consider it passed
                     passed += 1;
-                    results.push(Value::List(vec![
-                        Value::String(name.clone()),
-                        Value::Symbol("passed".to_string()),
-                        Value::Nil,
-                    ]));
+                    let mut result_map = HashMap::new();
+                    result_map.insert("name".to_string(), Value::String(name.clone()));
+                    result_map.insert("status".to_string(), Value::Symbol("passed".to_string()));
+                    result_map.insert("message".to_string(), Value::String(String::new()));
+                    results.push(Value::Map(result_map));
                 }
                 Err(e) => {
                     // Test threw an exception
                     failed += 1;
-                    results.push(Value::List(vec![
-                        Value::String(name.clone()),
-                        Value::Symbol("error".to_string()),
-                        Value::String(format!("{:?}", e)),
-                    ]));
+                    let mut result_map = HashMap::new();
+                    result_map.insert("name".to_string(), Value::String(name.clone()));
+                    result_map.insert("status".to_string(), Value::Symbol("error".to_string()));
+                    result_map.insert("message".to_string(), Value::String(format!("{:?}", e)));
+                    results.push(Value::Map(result_map));
                 }
             }
         }
     });
 
-    // Return result as association list
-    Ok(Value::List(vec![
-        Value::List(vec![
-            Value::Symbol("passed".to_string()),
-            Value::Number(passed as f64),
-        ]),
-        Value::List(vec![
-            Value::Symbol("failed".to_string()),
-            Value::Number(failed as f64),
-        ]),
-        Value::List(vec![
-            Value::Symbol("total".to_string()),
-            Value::Number((passed + failed) as f64),
-        ]),
-        Value::List(vec![
-            Value::Symbol("tests".to_string()),
-            Value::List(results),
-        ]),
-    ]))
+    // Return result as map
+    let mut result_map = HashMap::new();
+    result_map.insert("passed".to_string(), Value::Number(passed as f64));
+    result_map.insert("failed".to_string(), Value::Number(failed as f64));
+    result_map.insert("total".to_string(), Value::Number((passed + failed) as f64));
+    result_map.insert("tests".to_string(), Value::List(results));
+
+    Ok(Value::Map(result_map))
 }
 
 #[builtin(name = "clear-tests", category = "Testing", related(register-test, run-all-tests))]

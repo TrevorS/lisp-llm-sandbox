@@ -218,14 +218,17 @@ pub fn format_quick_reference() -> String {
     output.push_str(&format!("Available Functions ({} total)\n", total));
     output.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
 
-    // Define category display order
-    let categories = vec![
+    // Get all categories and sort them, with preferred categories first
+    let preferred_order = vec![
         "Special Forms",
         "Arithmetic",
         "Comparison",
         "Logic",
-        "List operations",
         "Type predicates",
+        "List operations",
+        "String manipulation",
+        "Maps",
+        "Testing",
         "Console I/O",
         "Filesystem I/O",
         "Network I/O",
@@ -233,7 +236,16 @@ pub fn format_quick_reference() -> String {
         "Help system",
     ];
 
-    for category in categories {
+    // Add any categories not in preferred list (sorted alphabetically)
+    let mut other_categories: Vec<&str> = by_cat.keys()
+        .filter(|cat| !preferred_order.contains(&cat.as_str()))
+        .map(|s| s.as_str())
+        .collect();
+    other_categories.sort();
+
+    let all_categories = preferred_order.into_iter().chain(other_categories.into_iter()).collect::<Vec<_>>();
+
+    for category in all_categories {
         if let Some(entries) = by_cat.get(category) {
             let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
             output.push_str(&format!("{} ({})\n", category, names.len()));
