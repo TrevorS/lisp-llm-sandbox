@@ -638,6 +638,9 @@ fn highlight_value(value: &Value) -> String {
         Value::BuiltIn(_) => {
             format!("{}#<builtin>{}", COLOR_BUILTIN, COLOR_RESET)
         }
+        Value::Channel { .. } => {
+            format!("{}#<channel>{}", COLOR_BUILTIN, COLOR_RESET)
+        }
         Value::Error(msg) => {
             format!("{}#<error: {}>{}", COLOR_SPECIAL_FORM, msg, COLOR_RESET)
         }

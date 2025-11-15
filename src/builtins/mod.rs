@@ -78,6 +78,7 @@ pub fn set_sandbox_storage(sandbox: Sandbox) {
 
 pub mod arithmetic;
 pub mod comparison;
+pub mod concurrency;
 pub mod console;
 pub mod errors;
 pub mod filesystem;
