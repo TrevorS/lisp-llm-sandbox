@@ -34,12 +34,12 @@ use super::SANDBOX;
 /// write-file, file-exists?
 pub fn read_file(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("read-file", "1", args.len()));
     }
 
     let path = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("read-file", "string", &args[0], 1)),
     };
 
     SANDBOX.with(|s| {
@@ -71,17 +71,17 @@ pub fn read_file(args: &[Value]) -> Result<Value, EvalError> {
 /// read-file, file-exists?
 pub fn write_file(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("write-file", "2", args.len()));
     }
 
     let path = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("write-file", "string", &args[0], 1)),
     };
 
     let contents = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("write-file", "string", &args[1], 2)),
     };
 
     SANDBOX.with(|s| {
@@ -114,12 +114,12 @@ pub fn write_file(args: &[Value]) -> Result<Value, EvalError> {
 /// file-size, read-file
 pub fn file_exists_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("file-exists?", "1", args.len()));
     }
 
     let path = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("file-exists?", "string", &args[0], 1)),
     };
 
     SANDBOX.with(|s| {
@@ -151,12 +151,12 @@ pub fn file_exists_q(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?, read-file
 pub fn file_size(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("file-size", "1", args.len()));
     }
 
     let path = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("file-size", "string", &args[0], 1)),
     };
 
     SANDBOX.with(|s| {
@@ -188,12 +188,12 @@ pub fn file_size(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?
 pub fn list_files(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("list-files", "1", args.len()));
     }
 
     let dir = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("list-files", "string", &args[0], 1)),
     };
 
     SANDBOX.with(|s| {
@@ -230,12 +230,12 @@ pub fn list_files(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?, file-size
 pub fn file_stat(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("file-stat", "1", args.len()));
     }
 
     let path = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("file-stat", "string", &args[0], 1)),
     };
 
     SANDBOX.with(|s| {

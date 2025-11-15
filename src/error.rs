@@ -32,7 +32,7 @@ pub enum EvalError {
         message: String,
     },
 
-    // ===== Legacy error variants (kept for backwards compatibility) =====
+    // ===== Special error variants (non-contextual by nature) =====
 
     #[error("Undefined symbol: {0}")]
     UndefinedSymbol(String),
@@ -40,17 +40,8 @@ pub enum EvalError {
     #[error("Value is not callable")]
     NotCallable,
 
-    #[error("Type error in operation")]
-    TypeError,
-
-    #[error("Arity mismatch: incorrect number of arguments")]
-    ArityMismatch,
-
     #[error("I/O error: {0}")]
     IoError(String),
-
-    #[error("{0}")]
-    Custom(String),
 }
 
 impl EvalError {
@@ -82,28 +73,14 @@ impl EvalError {
     }
 
     /// Add function context to any error (for wrapping existing errors)
-    pub fn in_function(self, function: &str) -> Self {
+    pub fn in_function(self, _function: &str) -> Self {
         match self {
             // Already has context - don't double-wrap
             EvalError::TypeMismatch { .. }
             | EvalError::ArityError { .. }
             | EvalError::RuntimeError { .. } => self,
 
-            // Add context to legacy errors
-            EvalError::TypeError => EvalError::RuntimeError {
-                function: function.to_string(),
-                message: "type error in operation".to_string(),
-            },
-            EvalError::ArityMismatch => EvalError::RuntimeError {
-                function: function.to_string(),
-                message: "arity mismatch".to_string(),
-            },
-            EvalError::Custom(msg) => EvalError::RuntimeError {
-                function: function.to_string(),
-                message: msg,
-            },
-
-            // Don't wrap these - they're specific enough
+            // Don't wrap these - they're specific enough or don't need context
             EvalError::UndefinedSymbol(_) | EvalError::NotCallable | EvalError::IoError(_) => self,
         }
     }

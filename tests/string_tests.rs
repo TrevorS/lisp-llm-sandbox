@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 /// Helper to parse and evaluate an expression
 fn eval_expr(expr: &str, env: &Rc<Environment>) -> Result<Value, EvalError> {
-    let parsed = parse(expr).map_err(|e| EvalError::Custom(e.to_string()))?;
+    let parsed = parse(expr).map_err(|e| EvalError::runtime_error("eval_expr", e.to_string()))?;
     eval(parsed, env.clone())
 }
 

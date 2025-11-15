@@ -30,7 +30,7 @@ use lisp_macros::builtin;
 /// <, >, <=, >=
 pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("=", "2", args.len()));
     }
 
     let result = match (&args[0], &args[1]) {
@@ -61,17 +61,17 @@ pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
 /// >, <=, >=, =
 pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("<", "2", args.len()));
     }
 
     let a = match args[0] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("<", "number", &args[0], 1)),
     };
 
     let b = match args[1] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("<", "number", &args[1], 2)),
     };
 
     Ok(Value::Bool(a < b))
@@ -92,17 +92,17 @@ pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
 /// <, <=, >=, =
 pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error(">", "2", args.len()));
     }
 
     let a = match args[0] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error(">", "number", &args[0], 1)),
     };
 
     let b = match args[1] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error(">", "number", &args[1], 2)),
     };
 
     Ok(Value::Bool(a > b))
@@ -123,17 +123,17 @@ pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
 /// <, >, >=, =
 pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("<=", "2", args.len()));
     }
 
     let a = match args[0] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("<=", "number", &args[0], 1)),
     };
 
     let b = match args[1] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("<=", "number", &args[1], 2)),
     };
 
     Ok(Value::Bool(a <= b))
@@ -154,17 +154,17 @@ pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
 /// <, >, <=, =
 pub fn builtin_ge(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error(">=", "2", args.len()));
     }
 
     let a = match args[0] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error(">=", "number", &args[0], 1)),
     };
 
     let b = match args[1] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error(">=", "number", &args[1], 2)),
     };
 
     Ok(Value::Bool(a >= b))

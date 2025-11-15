@@ -37,25 +37,26 @@ use super::SANDBOX;
 /// http-get, http-post
 pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("http-request", "2", args.len()));
     }
 
     let url = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("http-request", "string", &args[0], 1)),
     };
 
     let options = match &args[1] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("http-request", "map", &args[1], 2)),
     };
 
     // Extract method (required)
     let method = match options.get("method") {
         Some(Value::String(m)) => m.clone(),
         _ => {
-            return Err(EvalError::Custom(
-                "Missing or invalid :method in options".to_string(),
+            return Err(EvalError::runtime_error(
+                "http-request",
+                "missing or invalid :method in options",
             ))
         }
     };
@@ -68,8 +69,9 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
                 match v {
                     Value::String(val) => header_vec.push((k.clone(), val.clone())),
                     _ => {
-                        return Err(EvalError::Custom(
-                            "Header values must be strings".to_string(),
+                        return Err(EvalError::runtime_error(
+                            "http-request",
+                            "header values must be strings",
                         ))
                     }
                 }
@@ -77,21 +79,21 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
             Some(header_vec)
         }
         None => None,
-        _ => return Err(EvalError::Custom("Invalid :headers in options".to_string())),
+        _ => return Err(EvalError::runtime_error("http-request", "invalid :headers in options")),
     };
 
     // Extract optional body
     let body = match options.get("body") {
         Some(Value::String(b)) => Some(b.as_str()),
         None => None,
-        _ => return Err(EvalError::Custom("Body must be a string".to_string())),
+        _ => return Err(EvalError::runtime_error("http-request", "body must be a string")),
     };
 
     // Extract optional timeout
     let timeout = match options.get("timeout") {
         Some(Value::Number(t)) => Some(*t as u64),
         None => None,
-        _ => return Err(EvalError::Custom("Timeout must be a number".to_string())),
+        _ => return Err(EvalError::runtime_error("http-request", "timeout must be a number")),
     };
 
     SANDBOX.with(|s| {

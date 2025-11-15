@@ -1,0 +1,80 @@
+=== LEGACY ERROR VARIANTS INVENTORY ===
+
+FILE COUNTS:
+
+1. src/eval.rs
+   - Custom: 24 usages (special forms: quote, quasiquote, if, let, defmacro)
+   - ArityMismatch: 2 usages
+   - TypeError: 0 usages
+
+2. src/tools.rs  
+   - ArityMismatch: 1 usage
+   - TypeError: 1 usage
+   - Custom: 0 usages
+
+3. src/builtins/maps.rs
+   - ArityMismatch: 10 usages (across: map-new, map-get, map-set, map-has?, map-keys, map-values, map-entries, map-merge, map-remove, map-size)
+   - TypeError: 10 usages (checking map/keyword argument types)
+   - Custom: 0 usages
+
+4. src/builtins/lists.rs
+   - ArityMismatch: 4 usages (cons, car, cdr, list)
+   - TypeError: 5 usages (cons, car, cdr, length, empty?)
+   - Custom: 2 usages ("car of empty list", "cdr of empty list")
+
+5. src/builtins/comparison.rs
+   - ArityMismatch: 6 usages (=, <, >, <=, >=, equal?)
+   - TypeError: 6 usages (=, <, >, <=, >=, equal?)
+   - Custom: 0 usages
+
+6. src/builtins/help.rs
+   - ArityMismatch: 2 usages (help, doc)
+   - TypeError: 1 usage (help)
+   - Custom: 1 usage ("No help found for...")
+
+7. src/builtins/network.rs
+   - ArityMismatch: 1 usage (http-request)
+   - TypeError: 2 usages (http-request)
+   - Custom: 4 usages (invalid headers, body type, timeout type, HTTP request failures)
+
+8. src/builtins/errors.rs
+   - ArityMismatch: 3 usages (error, error?, error-msg)
+   - TypeError: 1 usage (error-msg)
+   - Custom: 0 usages
+
+9. src/builtins/types.rs
+   - ArityMismatch: 8 usages (all type predicates: number?, string?, bool?, list?, nil?, symbol?, map?, keyword?)
+   - TypeError: 0 usages
+   - Custom: 0 usages
+
+10. src/builtins/testing.rs
+    - ArityMismatch: 5 usages (test-equal, print-test-summary, print-test-details, run-test)
+    - TypeError: 1 usage (run-test)
+    - Custom: 1 usage ("Test must be a lambda")
+
+11. src/builtins/logic.rs
+    - ArityMismatch: 1 usage (not)
+    - TypeError: 2 usages (and, or)
+    - Custom: 0 usages
+
+12. src/builtins/filesystem.rs
+    - ArityMismatch: 6 usages (read-file, write-file, file-exists?, file-size, list-files)
+    - TypeError: 6 usages (same functions)
+    - Custom: 0 usages
+
+13. src/builtins/strings.rs
+    - ArityMismatch: 12 usages (string-length, string-concat, string-append, string-index, string-slice, string-split, string-trim, string-upcase, string-downcase, string-replace, string-substring)
+    - TypeError: 27 usages (similar functions checking string/number types)
+    - Custom: 1 usage (string-split error message)
+
+14. src/stdlib/json.rs
+    - ArityMismatch: 3 usages (json:encode, json:decode, json:pretty)
+    - TypeError: 1 usage (json:decode)
+    - Custom: 3 usages (JSON parsing/serialization error context)
+
+GRAND TOTALS:
+- ArityMismatch: 72 usages
+- TypeError: 66 usages  
+- Custom: 40 usages
+TOTAL: 178 legacy error usages to replace
+

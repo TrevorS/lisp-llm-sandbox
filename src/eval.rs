@@ -71,15 +71,13 @@ pub fn eval_with_macros(
                     }
                     Value::Symbol(s) if s == "quote" => {
                         if items.len() != 2 {
-                            return Err(EvalError::Custom("quote: expected 1 argument".into()));
+                            return Err(EvalError::arity_error("quote", "1", items.len() - 1));
                         }
                         return Ok(items[1].clone());
                     }
                     Value::Symbol(s) if s == "quasiquote" => {
                         if items.len() != 2 {
-                            return Err(EvalError::Custom(
-                                "quasiquote: expected 1 argument".into(),
-                            ));
+                            return Err(EvalError::arity_error("quasiquote", "1", items.len() - 1));
                         }
                         return eval_quasiquote(items[1].clone(), 1, current_env, macro_reg);
                     }
@@ -89,7 +87,7 @@ pub fn eval_with_macros(
                     Value::Symbol(s) if s == "if" => {
                         // Tail-optimized if: evaluate condition, then loop on branch
                         if items.len() < 3 || items.len() > 4 {
-                            return Err(EvalError::Custom("if: expected 2 or 3 arguments".into()));
+                            return Err(EvalError::arity_error("if", "2-3", items.len() - 1));
                         }
 
                         let condition =
@@ -150,7 +148,16 @@ pub fn eval_with_macros(
                             } => {
                                 // Check arity
                                 if params.len() != args.len() {
-                                    return Err(EvalError::ArityMismatch);
+                                    // Get lambda name if available (from define)
+                                    let name = match &items[0] {
+                                        Value::Symbol(s) => s.as_str(),
+                                        _ => "<lambda>",
+                                    };
+                                    return Err(EvalError::arity_error(
+                                        name,
+                                        params.len().to_string(),
+                                        args.len(),
+                                    ));
                                 }
 
                                 // Create new environment for lambda
@@ -200,9 +207,7 @@ fn eval_define(
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 2 {
-        return Err(EvalError::Custom(
-            "define requires at least 2 arguments".to_string(),
-        ));
+        return Err(EvalError::arity_error("define", "at least 2", args.len()));
     }
 
     match &args[0] {
@@ -219,8 +224,9 @@ fn eval_define(
             let name = match &func_def[0] {
                 Value::Symbol(n) => n.clone(),
                 _ => {
-                    return Err(EvalError::Custom(
-                        "Function name must be a symbol".to_string(),
+                    return Err(EvalError::runtime_error(
+                        "define",
+                        "function name must be a symbol",
                     ));
                 }
             };
@@ -231,8 +237,9 @@ fn eval_define(
                 match param {
                     Value::Symbol(p) => params.push(p.clone()),
                     _ => {
-                        return Err(EvalError::Custom(
-                            "Function parameters must be symbols".to_string(),
+                        return Err(EvalError::runtime_error(
+                            "define",
+                            "function parameters must be symbols",
                         ));
                     }
                 }
@@ -281,8 +288,9 @@ fn eval_define(
             Ok(Value::Symbol(name))
         }
 
-        _ => Err(EvalError::Custom(
-            "define requires a symbol or list as first argument".to_string(),
+        _ => Err(EvalError::runtime_error(
+            "define",
+            "requires a symbol or list as first argument",
         )),
     }
 }
@@ -291,9 +299,7 @@ fn eval_define(
 /// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
 fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
     if args.len() < 2 {
-        return Err(EvalError::Custom(
-            "lambda requires at least 2 arguments (params and body)".to_string(),
-        ));
+        return Err(EvalError::arity_error("lambda", "at least 2", args.len()));
     }
 
     // Extract parameters from args[0]
@@ -304,8 +310,9 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
                 match param {
                     Value::Symbol(name) => params.push(name.clone()),
                     _ => {
-                        return Err(EvalError::Custom(
-                            "Lambda parameters must be symbols".to_string(),
+                        return Err(EvalError::runtime_error(
+                            "lambda",
+                            "parameters must be symbols",
                         ));
                     }
                 }
@@ -317,8 +324,9 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
             Vec::new()
         }
         _ => {
-            return Err(EvalError::Custom(
-                "Lambda parameters must be a list".to_string(),
+            return Err(EvalError::runtime_error(
+                "lambda",
+                "parameters must be a list",
             ));
         }
     };
@@ -345,12 +353,12 @@ fn eval_let(
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::Custom("let: expected bindings and body".into()));
+        return Err(EvalError::arity_error("let", "at least 1", 0));
     }
 
     let bindings = match &args[0] {
         Value::List(items) => items,
-        _ => return Err(EvalError::Custom("let: bindings must be a list".into())),
+        _ => return Err(EvalError::runtime_error("let", "bindings must be a list")),
     };
 
     // Create new environment as child of current env
@@ -362,14 +370,15 @@ fn eval_let(
             Value::List(pair) if pair.len() == 2 => {
                 let name = match &pair[0] {
                     Value::Symbol(s) => s.clone(),
-                    _ => return Err(EvalError::Custom("let: binding name must be symbol".into())),
+                    _ => return Err(EvalError::runtime_error("let", "binding name must be symbol")),
                 };
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
                 new_env.define(name, value);
             }
             _ => {
-                return Err(EvalError::Custom(
-                    "let: binding must be [symbol value]".into(),
+                return Err(EvalError::runtime_error(
+                    "let",
+                    "binding must be [symbol value]",
                 ));
             }
         }
@@ -403,7 +412,7 @@ fn eval_quasiquote(
                 // (unquote expr) at depth 1 → evaluate expr
                 Value::Symbol(s) if s == "unquote" && depth == 1 => {
                     if items.len() != 2 {
-                        return Err(EvalError::Custom("unquote: expected 1 argument".into()));
+                        return Err(EvalError::arity_error("unquote", "1", items.len() - 1));
                     }
                     eval_with_macros(items[1].clone(), env, macro_reg)
                 }
@@ -411,7 +420,7 @@ fn eval_quasiquote(
                 // (quasiquote ...) → increase depth and recurse
                 Value::Symbol(s) if s == "quasiquote" => {
                     if items.len() != 2 {
-                        return Err(EvalError::Custom("quasiquote: expected 1 argument".into()));
+                        return Err(EvalError::arity_error("quasiquote", "1", items.len() - 1));
                     }
                     let inner = eval_quasiquote(items[1].clone(), depth + 1, env, macro_reg)?;
                     Ok(Value::List(vec![Value::Symbol("quasiquote".into()), inner]))
@@ -426,8 +435,10 @@ fn eval_quasiquote(
                             Value::List(parts) if !parts.is_empty() => match &parts[0] {
                                 Value::Symbol(s) if s == "unquote-splicing" && depth == 1 => {
                                     if parts.len() != 2 {
-                                        return Err(EvalError::Custom(
-                                            "unquote-splicing: expected 1 argument".into(),
+                                        return Err(EvalError::arity_error(
+                                            "unquote-splicing",
+                                            "1",
+                                            parts.len() - 1,
                                         ));
                                     }
                                     match eval_with_macros(
@@ -439,8 +450,9 @@ fn eval_quasiquote(
                                             new_items.extend(splice);
                                         }
                                         _ => {
-                                            return Err(EvalError::Custom(
-                                                "unquote-splicing requires a list".into(),
+                                            return Err(EvalError::runtime_error(
+                                                "unquote-splicing",
+                                                "requires a list",
                                             ));
                                         }
                                     }
@@ -482,14 +494,12 @@ fn eval_defmacro(
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 3 {
-        return Err(EvalError::Custom(
-            "defmacro: expected name, params, and body".into(),
-        ));
+        return Err(EvalError::arity_error("defmacro", "at least 3", args.len()));
     }
 
     let name = match &args[0] {
         Value::Symbol(n) => n.clone(),
-        _ => return Err(EvalError::Custom("defmacro: name must be a symbol".into())),
+        _ => return Err(EvalError::runtime_error("defmacro", "name must be a symbol")),
     };
 
     let params = match &args[1] {
@@ -497,12 +507,13 @@ fn eval_defmacro(
             .iter()
             .map(|v| match v {
                 Value::Symbol(s) => Ok(s.clone()),
-                _ => Err(EvalError::Custom(
-                    "defmacro: parameter must be symbol".into(),
+                _ => Err(EvalError::runtime_error(
+                    "defmacro",
+                    "parameter must be symbol",
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?,
-        _ => return Err(EvalError::Custom("defmacro: params must be a list".into())),
+        _ => return Err(EvalError::runtime_error("defmacro", "params must be a list")),
     };
 
     // Body is the remaining args, wrapped in begin if multiple
@@ -533,7 +544,11 @@ fn expand_macros(
                         let args = &items[1..];
 
                         if params.len() != args.len() {
-                            return Err(EvalError::ArityMismatch);
+                            return Err(EvalError::arity_error(
+                                name,
+                                params.len().to_string(),
+                                args.len(),
+                            ));
                         }
 
                         let macro_env = Environment::with_parent(env.clone());
@@ -949,7 +964,7 @@ mod tests {
         ]);
 
         let result = eval(expr, env);
-        assert!(matches!(result, Err(EvalError::ArityMismatch)));
+        assert!(matches!(result, Err(EvalError::ArityError { .. })));
     }
 
     #[test]

@@ -48,7 +48,7 @@ thread_local! {
 /// assert-equal, assert-error
 pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() || args.len() > 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("assert", "1-2", args.len()));
     }
 
     let condition = &args[0];
@@ -89,7 +89,7 @@ pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
 /// assert, =
 pub fn builtin_assert_equal(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("assert-equal", "2-3", args.len()));
     }
 
     let actual = &args[0];
@@ -158,7 +158,7 @@ fn values_equal(a: &Value, b: &Value) -> bool {
 /// assert, error?
 pub fn builtin_assert_error(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() || args.len() > 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("assert-error", "1-2", args.len()));
     }
 
     let value = &args[0];
@@ -198,12 +198,12 @@ pub fn builtin_assert_error(args: &[Value]) -> Result<Value, EvalError> {
 /// run-all-tests, clear-tests
 pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("register-test", "2", args.len()));
     }
 
     let name = match &args[0] {
         Value::String(s) => s.clone(),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("register-test", "string", &args[0], 1)),
     };
 
     let test_fn = args[1].clone();
@@ -211,7 +211,7 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
     // Verify it's a lambda
     match &test_fn {
         Value::Lambda { .. } => {}
-        _ => return Err(EvalError::Custom("Test must be a lambda".to_string())),
+        _ => return Err(EvalError::type_error("register-test", "lambda", &args[1], 2)),
     }
 
     TEST_REGISTRY.with(|registry| {
@@ -238,7 +238,7 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
 /// register-test, clear-tests
 pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("run-all-tests", "0", args.len()));
     }
 
     let mut results = Vec::new();
@@ -320,7 +320,7 @@ pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
 /// register-test, run-all-tests
 pub fn builtin_clear_tests(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("clear-tests", "0", args.len()));
     }
 
     TEST_REGISTRY.with(|registry| {

@@ -26,10 +26,10 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, EvalError> {
             if let Some(num) = serde_json::Number::from_f64(*n) {
                 Ok(serde_json::Value::Number(num))
             } else {
-                Err(EvalError::Custom(format!(
-                    "Cannot convert number {} to JSON",
-                    n
-                )))
+                Err(EvalError::runtime_error(
+                    "json:encode",
+                    format!("cannot convert number {} to JSON", n),
+                ))
             }
         }
         Value::String(s) => Ok(serde_json::Value::String(s.clone())),
@@ -47,10 +47,10 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, EvalError> {
             }
             Ok(serde_json::Value::Object(json_map))
         }
-        _ => Err(EvalError::Custom(format!(
-            "Cannot convert {} to JSON",
-            value
-        ))),
+        _ => Err(EvalError::runtime_error(
+            "json:encode",
+            format!("cannot convert {} to JSON", value),
+        )),
     }
 }
 
@@ -81,12 +81,12 @@ fn json_to_value(json: &serde_json::Value) -> Value {
 /// json:encode - Encode Lisp value to JSON string
 fn json_encode(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("json:encode", "1", args.len()));
     }
 
     let json_value = value_to_json(&args[0])?;
-    let json_string =
-        serde_json::to_string(&json_value).map_err(|e| EvalError::Custom(e.to_string()))?;
+    let json_string = serde_json::to_string(&json_value)
+        .map_err(|e| EvalError::runtime_error("json:encode", e.to_string()))?;
 
     Ok(Value::String(json_string))
 }
@@ -94,16 +94,16 @@ fn json_encode(args: &[Value]) -> Result<Value, EvalError> {
 /// json:decode - Decode JSON string to Lisp value
 fn json_decode(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("json:decode", "1", args.len()));
     }
 
     let json_str = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("json:decode", "string", &args[0], 1)),
     };
 
-    let json_value: serde_json::Value =
-        serde_json::from_str(json_str).map_err(|e| EvalError::Custom(e.to_string()))?;
+    let json_value: serde_json::Value = serde_json::from_str(json_str)
+        .map_err(|e| EvalError::runtime_error("json:decode", e.to_string()))?;
 
     Ok(json_to_value(&json_value))
 }
@@ -111,12 +111,12 @@ fn json_decode(args: &[Value]) -> Result<Value, EvalError> {
 /// json:pretty - Encode Lisp value to pretty-printed JSON string
 fn json_pretty(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("json:pretty", "1", args.len()));
     }
 
     let json_value = value_to_json(&args[0])?;
-    let json_string =
-        serde_json::to_string_pretty(&json_value).map_err(|e| EvalError::Custom(e.to_string()))?;
+    let json_string = serde_json::to_string_pretty(&json_value)
+        .map_err(|e| EvalError::runtime_error("json:pretty", e.to_string()))?;
 
     Ok(Value::String(json_string))
 }
