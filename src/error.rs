@@ -71,17 +71,4 @@ impl EvalError {
             message: message.into(),
         }
     }
-
-    /// Add function context to any error (for wrapping existing errors)
-    pub fn in_function(self, _function: &str) -> Self {
-        match self {
-            // Already has context - don't double-wrap
-            EvalError::TypeMismatch { .. }
-            | EvalError::ArityError { .. }
-            | EvalError::RuntimeError { .. } => self,
-
-            // Don't wrap these - they're specific enough or don't need context
-            EvalError::UndefinedSymbol(_) | EvalError::NotCallable | EvalError::IoError(_) => self,
-        }
-    }
 }

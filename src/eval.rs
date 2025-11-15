@@ -172,14 +172,8 @@ pub fn eval_with_macros(
                                 // Continue loop
                             }
                             Value::BuiltIn(f) => {
-                                // Get function name for better error messages
-                                let function_name = match &items[0] {
-                                    Value::Symbol(name) => name.as_str(),
-                                    _ => "<builtin>",
-                                };
-
-                                // Call function and add context to errors
-                                return f(&args).map_err(|e| e.in_function(function_name));
+                                // All builtins now include function context in errors
+                                return f(&args);
                             }
                             _ => {
                                 return Err(EvalError::NotCallable);
