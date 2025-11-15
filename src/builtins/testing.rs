@@ -287,7 +287,7 @@ pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
                     let mut result_map = HashMap::new();
                     result_map.insert("name".to_string(), Value::String(name.clone()));
                     result_map.insert("status".to_string(), Value::Symbol("error".to_string()));
-                    result_map.insert("message".to_string(), Value::String(format!("{:?}", e)));
+                    result_map.insert("message".to_string(), Value::String(e.to_string()));
                     results.push(Value::Map(result_map));
                 }
             }

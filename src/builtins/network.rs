@@ -102,7 +102,9 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
 
         let response = sandbox
             .http_request(url, &method, headers, body, timeout)
-            .map_err(|e| EvalError::IoError(e.to_string()))?;
+            .map_err(|e| {
+                EvalError::IoError(format!("HTTP {} request to '{}' failed: {}", method, url, e))
+            })?;
 
         // Build response map
         let mut response_map = HashMap::new();
