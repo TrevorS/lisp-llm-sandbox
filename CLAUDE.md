@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
-- **237 comprehensive tests** covering all major features
+- **248 comprehensive tests** covering all major features
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **33 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
+- **35 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, database, filesystem, network, errors, help)
 - **41 standard library functions** in pure Lisp organized into 5 focused modules (core, math, string, test, http)
-- **Complete help system** with markdown documentation for all 82 functions (8 special forms + 33 builtins + 41 stdlib)
+- **Complete help system** with markdown documentation for all 84 functions (8 special forms + 35 builtins + 41 stdlib)
 - **Markdown-rendered help** with syntax highlighting via termimad
 
 ## Development Commands
@@ -249,23 +249,24 @@ This convention provides:
 ### Builtins Directory Structure (src/builtins/)
 ```
 builtins/
-├── mod.rs              # Coordination, calls all register functions
+├── mod.rs              # Coordination, auto-registration via inventory
 ├── arithmetic.rs       # +, -, *, /, %
 ├── comparison.rs       # =, <, >, <=, >=
 ├── logic.rs            # and, or, not
-├── types.rs            # number?, string?, list?, nil?, symbol?, bool?
+├── types.rs            # number?, string?, list?, nil?, symbol?, bool?, map?, keyword?
 ├── lists.rs            # cons, car, cdr, list, length, empty?
 ├── console.rs          # print, println
+├── database.rs         # db-execute, db-query (SQLite operations)
 ├── filesystem.rs       # read-file, write-file, file-exists?, file-size, list-files
-├── network.rs          # http-get, http-post
+├── network.rs          # http-get, http-post, http-request
 ├── errors.rs           # error, error?, error-msg
 └── help.rs             # help, doc
 ```
 
 Each module has:
-- Function implementations
-- `register(env)` function that registers bindings + help entries
+- Function implementations using `#[builtin]` macro for auto-registration
 - Module-level doc comments (for cargo doc)
+- Functions are automatically registered via the inventory crate at compile time
 
 ### Core File Responsibilities
 - `value.rs` - All Value enum variants and Display impl

@@ -405,6 +405,162 @@ impl Sandbox {
             body: body_str,
         })
     }
+
+    // ========================================================================
+    // Database Operations
+    // ========================================================================
+
+    /// Resolve a database path within the sandbox
+    fn resolve_db_path(&self, db_path: &str) -> Result<std::path::PathBuf, SandboxError> {
+        // Validate path format (no absolute paths, no .. traversals)
+        if db_path.starts_with('/') || db_path.starts_with("\\") {
+            return Err(SandboxError::PathNotAllowed(db_path.to_string()));
+        }
+
+        if db_path.contains("..") {
+            return Err(SandboxError::PathNotAllowed(db_path.to_string()));
+        }
+
+        // Use first root for database files
+        if self.fs_roots.is_empty() {
+            return Err(SandboxError::PathNotAllowed(db_path.to_string()));
+        }
+
+        // Get the actual filesystem path from the cap-std Dir
+        let root_path = &self.fs_config.allowed_paths[0];
+        let full_path = root_path.join(db_path);
+
+        Ok(full_path)
+    }
+
+    /// Execute a SQL statement (CREATE, INSERT, UPDATE, DELETE)
+    /// Returns the number of rows affected
+    pub fn db_execute(
+        &self,
+        db_path: &str,
+        sql: &str,
+        params: Option<&[crate::value::Value]>,
+    ) -> Result<usize, SandboxError> {
+        let full_path = self.resolve_db_path(db_path)?;
+
+        // Open database connection
+        let conn = rusqlite::Connection::open(&full_path)
+            .map_err(|e| SandboxError::IoError(format!("Cannot open database: {}", e)))?;
+
+        // Prepare statement
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| SandboxError::IoError(format!("SQL error: {}", e)))?;
+
+        // Execute with or without parameters
+        let rows_affected = if let Some(param_values) = params {
+            // Convert Lisp values to rusqlite params
+            let rusqlite_params: Vec<Box<dyn rusqlite::ToSql>> = param_values
+                .iter()
+                .map(|v| -> Box<dyn rusqlite::ToSql> {
+                    match v {
+                        crate::value::Value::Number(n) => Box::new(*n),
+                        crate::value::Value::String(s) => Box::new(s.clone()),
+                        crate::value::Value::Bool(b) => Box::new(*b as i64),
+                        crate::value::Value::Nil => Box::new(rusqlite::types::Null),
+                        _ => Box::new(v.to_string()),
+                    }
+                })
+                .collect();
+
+            let params_refs: Vec<&dyn rusqlite::ToSql> = rusqlite_params
+                .iter()
+                .map(|b| &**b as &dyn rusqlite::ToSql)
+                .collect();
+
+            stmt.execute(&params_refs[..])
+                .map_err(|e| SandboxError::IoError(format!("Execute error: {}", e)))?
+        } else {
+            stmt.execute([])
+                .map_err(|e| SandboxError::IoError(format!("Execute error: {}", e)))?
+        };
+
+        Ok(rows_affected)
+    }
+
+    /// Execute a SELECT query and return results as a list of row maps
+    pub fn db_query(
+        &self,
+        db_path: &str,
+        sql: &str,
+        params: Option<&[crate::value::Value]>,
+    ) -> Result<Vec<std::collections::HashMap<String, DbValue>>, SandboxError> {
+        let full_path = self.resolve_db_path(db_path)?;
+
+        // Open database connection
+        let conn = rusqlite::Connection::open(&full_path)
+            .map_err(|e| SandboxError::IoError(format!("Cannot open database: {}", e)))?;
+
+        // Prepare statement
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| SandboxError::IoError(format!("SQL error: {}", e)))?;
+
+        // Get column names before executing query
+        let column_names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+
+        // Execute query with or without parameters
+        let mut rows = if let Some(param_values) = params {
+            // Convert Lisp values to rusqlite params
+            let rusqlite_params: Vec<Box<dyn rusqlite::ToSql>> = param_values
+                .iter()
+                .map(|v| -> Box<dyn rusqlite::ToSql> {
+                    match v {
+                        crate::value::Value::Number(n) => Box::new(*n),
+                        crate::value::Value::String(s) => Box::new(s.clone()),
+                        crate::value::Value::Bool(b) => Box::new(*b as i64),
+                        crate::value::Value::Nil => Box::new(rusqlite::types::Null),
+                        _ => Box::new(v.to_string()),
+                    }
+                })
+                .collect();
+
+            let params_refs: Vec<&dyn rusqlite::ToSql> = rusqlite_params
+                .iter()
+                .map(|b| &**b as &dyn rusqlite::ToSql)
+                .collect();
+
+            stmt.query(&params_refs[..])
+                .map_err(|e| SandboxError::IoError(format!("Query error: {}", e)))?
+        } else {
+            stmt.query([])
+                .map_err(|e| SandboxError::IoError(format!("Query error: {}", e)))?
+        };
+
+        // Convert rows to Vec<HashMap<String, DbValue>>
+        let mut result = Vec::new();
+
+        while let Some(row) = rows
+            .next()
+            .map_err(|e| SandboxError::IoError(format!("Row fetch error: {}", e)))?
+        {
+            let mut row_map = std::collections::HashMap::new();
+
+            for (idx, col_name) in column_names.iter().enumerate() {
+                let value = match row.get_ref(idx) {
+                    Ok(rusqlite::types::ValueRef::Integer(i)) => DbValue::Integer(i),
+                    Ok(rusqlite::types::ValueRef::Real(r)) => DbValue::Real(r),
+                    Ok(rusqlite::types::ValueRef::Text(t)) => {
+                        DbValue::Text(String::from_utf8_lossy(t).to_string())
+                    }
+                    Ok(rusqlite::types::ValueRef::Null) => DbValue::Null,
+                    Ok(rusqlite::types::ValueRef::Blob(_)) => DbValue::Text("[BLOB]".to_string()),
+                    Err(e) => return Err(SandboxError::IoError(format!("Column error: {}", e))),
+                };
+
+                row_map.insert(col_name.clone(), value);
+            }
+
+            result.push(row_map);
+        }
+
+        Ok(result)
+    }
 }
 
 /// HTTP Response structure returned by http_request
@@ -424,6 +580,15 @@ pub struct FileStat {
     pub accessed: f64,     // Unix timestamp in seconds
     pub created: f64,      // Unix timestamp in seconds
     pub readonly: bool,
+}
+
+/// Database value types for query results
+#[derive(Clone, Debug, PartialEq)]
+pub enum DbValue {
+    Integer(i64),
+    Real(f64),
+    Text(String),
+    Null,
 }
 
 #[cfg(test)]

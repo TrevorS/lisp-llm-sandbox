@@ -25,7 +25,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - `unquote-splicing` (,@) - List splicing
 - `defmacro` - Macro definition
 
-### Built-in Functions (43 total, organized by category)
+### Built-in Functions (45 total, organized by category)
 
 **Arithmetic** (5): `+`, `-`, `*`, `/`, `%`
 
@@ -40,6 +40,8 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 **Map Operations** (11): `map-new`, `map-get`, `map-set`, `map-has?`, `map-keys`, `map-values`, `map-entries`, `map-merge`, `map-remove`, `map-empty?`, `map-size`
 
 **Console I/O** (2): `print`, `println`
+
+**Database** (2): `db-execute`, `db-query`
 
 **Filesystem I/O** (5): `read-file`, `write-file`, `file-exists?`, `file-size`, `list-files`
 
@@ -240,6 +242,33 @@ The interpreter has a first-class help system:
 
 ; Pretty-print JSON with indentation
 (println (json:pretty json-str))
+```
+
+### SQLite Database Operations
+```lisp
+; Create a table
+(db-execute "users.db" "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER)")
+
+; Insert data with parameterized queries (prevents SQL injection)
+(db-execute "users.db" "INSERT INTO users (id, name, age) VALUES (?, ?, ?)" '(1 "Alice" 30))
+(db-execute "users.db" "INSERT INTO users (id, name, age) VALUES (?, ?, ?)" '(2 "Bob" 25))
+
+; Query data - returns list of maps
+(define users (db-query "users.db" "SELECT * FROM users ORDER BY id"))
+; users => ({:age 30 :id 1 :name "Alice"} {:age 25 :id 2 :name "Bob"})
+
+; Query with parameters
+(define result (db-query "users.db" "SELECT * FROM users WHERE name = ?" '("Alice")))
+(map-get (car result) :age)  ; => 30
+
+; Update data
+(db-execute "users.db" "UPDATE users SET age = ? WHERE id = ?" '(31 1))  ; => 1 (rows affected)
+
+; Delete data
+(db-execute "users.db" "DELETE FROM users WHERE id = ?" '(2))  ; => 1
+
+; Database files are sandboxed - path traversal is blocked
+(db-execute "../../../etc/passwd.db" "...")  ; => Error: Access denied
 ```
 
 ### Sandboxed File I/O
