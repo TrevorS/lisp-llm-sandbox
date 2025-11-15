@@ -5,11 +5,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
-- **237 comprehensive tests** covering all major features
+- **281 comprehensive tests** covering all major features (88 unit + 118 integration + 11 concurrency + 17 stdlib + 21 builtin + 25 string tests)
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **33 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
+- **38 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help, concurrency)
 - **41 standard library functions** in pure Lisp organized into 5 focused modules (core, math, string, test, http)
-- **Complete help system** with markdown documentation for all 82 functions (8 special forms + 33 builtins + 41 stdlib)
+- **Complete help system** with markdown documentation for all 87 functions (8 special forms + 38 builtins + 41 stdlib)
+- **Go-style channels** for concurrent programming with buffered/unbuffered channels
 - **Markdown-rendered help** with syntax highlighting via termimad
 
 ## Development Commands
@@ -62,6 +63,7 @@ The `Value` enum represents all Lisp types. Key types:
 - **Lambda**: Captures environment + docstring (for help system)
 - **Macro**: Similar to Lambda but for compile-time transformation
 - **BuiltIn**: Rust function pointers for native implementation
+- **Channel**: Thread-safe communication channels (Arc-wrapped crossbeam channels)
 - **Error**: Catchable error values (not exceptions)
 - **Nil**: Empty list / null value
 
@@ -69,7 +71,8 @@ When adding new features, determine if they belong as Values, builtins, or speci
 
 **Recent Additions**:
 - **Map and Keyword types** enable structured data and named parameters (LLM-first design)
-- **Type predicates** added: `map?` and `keyword?` join existing predicates like `number?`, `string?`, `list?`, `symbol?`, `bool?`, `nil?`
+- **Channel type** enables Go-style concurrent programming with thread-safe message passing
+- **Type predicates** added: `map?`, `keyword?`, and `channel?` join existing predicates like `number?`, `string?`, `list?`, `symbol?`, `bool?`, `nil?`
 
 ### Parser (src/parser.rs)
 Uses **nom parser combinators**. Key points:
@@ -88,10 +91,43 @@ Uses **cap-std** for capability-based security:
 
 The sandbox is thread-local and must be configured at startup. When adding new I/O operations, use the sandbox trait.
 
+### Concurrency System (src/builtins/concurrency.rs)
+Go-style **channels** for thread-safe message passing:
+- **Channels**: Unbuffered and buffered (configurable capacity)
+- **Thread-safe**: Uses crossbeam MPMC channels wrapped in Arc
+- **Self-evaluating**: Channel values can be passed around like any other value
+- **Operations**: `make-channel`, `channel-send`, `channel-recv`, `channel-close`, `channel?`
+
+**Key Features:**
+```lisp
+;; Create channels
+(define ch (make-channel))      ; Unbuffered
+(define ch (make-channel 10))   ; Buffered (capacity 10)
+
+;; Send and receive
+(channel-send ch 42)
+(channel-recv ch)  ; => 42
+
+;; Channels can hold any value type
+(channel-send ch {:name "Alice" :age 30})
+(channel-send ch (list 1 2 3))
+```
+
+**V1 Limitations:**
+- No `spawn` primitive yet (requires Arc-based environments - planned for V2)
+- Channels work within single-threaded context for V1
+- Future versions will add goroutine-style concurrency
+
+**Implementation Notes:**
+- Channel value contains Arc<Sender> and Arc<Receiver> for thread-safety
+- Uses crossbeam-channel for MPMC (multi-producer, multi-consumer) support
+- When spawn is added, channels will enable true concurrent programming
+
 ### Help System (src/help.rs)
-**Thread-local registry** with markdown documentation for 67 total functions:
-- **33 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
-  - New additions: `map?`, `keyword?` (type predicates), `http-request` (flexible HTTP), `file-stat` (file metadata)
+**Thread-local registry** with markdown documentation for 87 total functions:
+- **38 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+  - New additions: `channel?`, `make-channel`, `channel-send`, `channel-recv`, `channel-close` (concurrency primitives)
+  - Previous additions: `map?`, `keyword?` (type predicates), `http-request` (flexible HTTP), `file-stat` (file metadata)
 - **8 special forms**: Registered in `eval.rs` via `register_special_forms_part1()` and `register_special_forms_part2()`
 - **41 stdlib functions**: ;;; comment documentation in 5 focused modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
 
@@ -190,6 +226,7 @@ The test suite has **237 tests** organized across 6 test suites:
 - **nom** (8.0.0) - Parser combinators (S-expression parsing)
 - **rustyline** (17.0.2) - REPL with readline support and history
 - **cap-std** (3.4.5) - Capability-based filesystem isolation
+- **crossbeam-channel** (0.5) - Thread-safe MPMC channels for concurrency
 - **thiserror** (2.0.17) - Error macros for clean error types
 - **ureq** (2.10.0) - HTTP client with timeout support
 - **clap** (4.5.51) - CLI argument parsing (main.rs)
@@ -242,7 +279,7 @@ This convention provides:
 ### Separation of Concerns
 - `parser.rs` - Only parsing, no evaluation
 - `eval.rs` - Only evaluation logic, uses parser as input; contains special forms + registration functions
-- `builtins/` - 10 category modules + coordination (see structure below)
+- `builtins/` - 11 category modules + coordination (see structure below)
 - `sandbox.rs` - Only I/O safety, isolated from evaluator
 - `env.rs` - Only scope management, no parsing/evaluation
 
@@ -252,6 +289,7 @@ builtins/
 ├── mod.rs              # Coordination, calls all register functions
 ├── arithmetic.rs       # +, -, *, /, %
 ├── comparison.rs       # =, <, >, <=, >=
+├── concurrency.rs      # make-channel, channel-send, channel-recv, channel-close, channel?
 ├── logic.rs            # and, or, not
 ├── types.rs            # number?, string?, list?, nil?, symbol?, bool?
 ├── lists.rs            # cons, car, cdr, list, length, empty?
@@ -289,10 +327,10 @@ Each module has:
 ## Documentation System (Recently Implemented)
 
 ### Complete Help Coverage
-The interpreter has comprehensive markdown documentation for 67 functions:
+The interpreter has comprehensive markdown documentation for 87 functions:
 - **8 Special Forms**: define, lambda, if, begin, let, quote, quasiquote, defmacro (in eval.rs)
-- **32 Built-in Functions**: Across 10 categories in src/builtins/
-- **27 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
+- **38 Built-in Functions**: Across 11 categories in src/builtins/ (including concurrency)
+- **41 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
 
 ### Help Entry Format
 Each help entry contains:

@@ -2,12 +2,14 @@
 
 use crate::env::Environment;
 use crate::error::EvalError;
+use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
+use std::sync::Arc;
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Value {
     Number(f64),
     Bool(bool),
@@ -27,8 +29,47 @@ pub enum Value {
         body: Box<Value>,
     },
     BuiltIn(fn(&[Value]) -> Result<Value, EvalError>),
+    Channel {
+        sender: Arc<Sender<Value>>,
+        receiver: Arc<Receiver<Value>>,
+    },
     Error(String), // Error values that can be caught
     Nil,
+}
+
+// Manual Debug implementation because Sender/Receiver don't implement Debug
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Number(n) => write!(f, "Number({:?})", n),
+            Value::Bool(b) => write!(f, "Bool({:?})", b),
+            Value::Symbol(s) => write!(f, "Symbol({:?})", s),
+            Value::Keyword(k) => write!(f, "Keyword({:?})", k),
+            Value::String(s) => write!(f, "String({:?})", s),
+            Value::List(items) => write!(f, "List({:?})", items),
+            Value::Map(map) => write!(f, "Map({:?})", map),
+            Value::Lambda {
+                params,
+                body,
+                env: _,
+                docstring,
+            } => f
+                .debug_struct("Lambda")
+                .field("params", params)
+                .field("body", body)
+                .field("docstring", docstring)
+                .finish(),
+            Value::Macro { params, body } => f
+                .debug_struct("Macro")
+                .field("params", params)
+                .field("body", body)
+                .finish(),
+            Value::BuiltIn(_) => write!(f, "BuiltIn(<function>)"),
+            Value::Channel { .. } => write!(f, "Channel(<channel>)"),
+            Value::Error(msg) => write!(f, "Error({:?})", msg),
+            Value::Nil => write!(f, "Nil"),
+        }
+    }
 }
 
 impl fmt::Display for Value {
@@ -71,6 +112,7 @@ impl fmt::Display for Value {
             Value::Lambda { .. } => write!(f, "#<lambda>"),
             Value::Macro { .. } => write!(f, "#<macro>"),
             Value::BuiltIn(_) => write!(f, "#<builtin>"),
+            Value::Channel { .. } => write!(f, "#<channel>"),
             Value::Error(msg) => write!(f, "#<error: {}>", msg),
             Value::Nil => write!(f, "nil"),
         }

@@ -30,6 +30,7 @@ pub fn eval_with_macros(
             | Value::Bool(_)
             | Value::String(_)
             | Value::Keyword(_)
+            | Value::Channel { .. }
             | Value::Nil => {
                 return Ok(expr.clone());
             }
