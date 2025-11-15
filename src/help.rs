@@ -148,15 +148,15 @@ pub fn register_help(entry: HelpEntry) {
     });
 }
 
-/// Get a help entry by name (tries registry first, then environment for Lisp functions)
+/// Get a help entry by name (checks environment first for shadowing, then registry)
 pub fn get_help(name: &str) -> Option<HelpEntry> {
-    // Try registry first (builtins and registered help)
-    if let Some(entry) = HELP_REGISTRY.with(|reg| reg.borrow().get(name)) {
+    // Try environment first to handle shadowing (user-defined functions override stdlib)
+    if let Some(entry) = get_lisp_function_help(name) {
         return Some(entry);
     }
 
-    // Fall back to environment lookup for user-defined functions
-    get_lisp_function_help(name)
+    // Fall back to registry for builtins and registered help
+    HELP_REGISTRY.with(|reg| reg.borrow().get(name))
 }
 
 /// Get all entries organized by category
@@ -323,5 +323,37 @@ mod tests {
         assert!(formatted.contains("test - Test"));
         assert!(formatted.contains("A test function"));
         assert!(formatted.contains("(test 1)"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_user_defined_function_shadows_stdlib_help() {
+        use crate::env::Environment;
+        use std::rc::Rc;
+
+        // Create an environment and define a user function
+        let env = Rc::new(Environment::new());
+        let user_sum = Value::Lambda {
+            params: vec!["x".to_string(), "y".to_string()],
+            body: Box::new(Value::Symbol("+".to_string())),
+            env: Rc::clone(&env),
+            docstring: Some("Add two numbers together".to_string()),
+        };
+        env.define("sum".to_string(), user_sum);
+
+        // Set the current environment for help lookup
+        set_current_env(Some(Rc::clone(&env)));
+
+        // Get help should return the user-defined version, not stdlib
+        let help = get_help("sum");
+        assert!(help.is_some());
+        let entry = help.unwrap();
+        assert_eq!(entry.name, "sum");
+        assert_eq!(entry.category, "User-defined");
+        assert_eq!(entry.description, "Add two numbers together");
+        assert_eq!(entry.signature, "(sum x y)");
+
+        // Clean up
+        set_current_env(None);
     }
 }
