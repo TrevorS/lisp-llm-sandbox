@@ -10,6 +10,14 @@
 # Dependency lock file (optional - uncomment to include)
 # Cargo.lock
 
+# Test artifacts
+test_data/
+test_db_temp/
+test_sandbox_temp/
+*.db
+*.db-shm
+*.db-wal
+
 # IDE
 .vscode/
 .idea/
