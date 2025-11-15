@@ -53,7 +53,11 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
     // Extract method (required)
     let method = match options.get("method") {
         Some(Value::String(m)) => m.clone(),
-        _ => return Err(EvalError::Custom("Missing or invalid :method in options".to_string())),
+        _ => {
+            return Err(EvalError::Custom(
+                "Missing or invalid :method in options".to_string(),
+            ))
+        }
     };
 
     // Extract optional headers map
@@ -63,9 +67,11 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
             for (k, v) in h.iter() {
                 match v {
                     Value::String(val) => header_vec.push((k.clone(), val.clone())),
-                    _ => return Err(EvalError::Custom(
-                        "Header values must be strings".to_string(),
-                    )),
+                    _ => {
+                        return Err(EvalError::Custom(
+                            "Header values must be strings".to_string(),
+                        ))
+                    }
                 }
             }
             Some(header_vec)

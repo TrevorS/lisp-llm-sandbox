@@ -242,7 +242,7 @@ impl Sandbox {
 
                 // Timestamps: use approximate values since cap_std times don't directly convert
                 // to Unix timestamps. We'll store them as relative times from current moment.
-                let modified = 0.0;  // Would need more complex conversion
+                let modified = 0.0; // Would need more complex conversion
                 let accessed = 0.0;
                 let created = 0.0;
 
@@ -358,7 +358,12 @@ impl Sandbox {
             "DELETE" => ureq::delete(url),
             "PATCH" => ureq::patch(url),
             "HEAD" => ureq::head(url),
-            _ => return Err(SandboxError::IoError(format!("Unsupported HTTP method: {}", method))),
+            _ => {
+                return Err(SandboxError::IoError(format!(
+                    "Unsupported HTTP method: {}",
+                    method
+                )))
+            }
         };
 
         // Set headers if provided
@@ -385,10 +390,7 @@ impl Sandbox {
             .headers_names()
             .iter()
             .map(|name| {
-                let value = response
-                    .header(name)
-                    .unwrap_or("")
-                    .to_string();
+                let value = response.header(name).unwrap_or("").to_string();
                 (name.to_string(), value)
             })
             .collect();
@@ -417,10 +419,10 @@ pub struct HttpResponse {
 #[derive(Clone, Debug)]
 pub struct FileStat {
     pub size: u64,
-    pub file_type: String,  // "file", "directory", or "symlink"
-    pub modified: f64,      // Unix timestamp in seconds
-    pub accessed: f64,      // Unix timestamp in seconds
-    pub created: f64,       // Unix timestamp in seconds
+    pub file_type: String, // "file", "directory", or "symlink"
+    pub modified: f64,     // Unix timestamp in seconds
+    pub accessed: f64,     // Unix timestamp in seconds
+    pub created: f64,      // Unix timestamp in seconds
     pub readonly: bool,
 }
 

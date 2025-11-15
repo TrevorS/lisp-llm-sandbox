@@ -212,7 +212,7 @@ fn parse_symbol(input: &str) -> IResult<&str, Value> {
             || c == '*'
             || c == '/'
             || c == '%'
-            || c == ':'  // Allow : in symbols for namespace support (fs:read)
+            || c == ':' // Allow : in symbols for namespace support (fs:read)
     })(input)?;
 
     let mut symbol = String::new();
@@ -381,7 +381,7 @@ fn parse_expr(input: &str) -> IResult<&str, Value> {
         parse_quote,
         parse_quasiquote,
         parse_unquote,
-        parse_map,     // Try map before list
+        parse_map, // Try map before list
         parse_list,
         parse_bool,
         parse_number,

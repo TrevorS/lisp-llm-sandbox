@@ -133,7 +133,8 @@ fn values_equal(a: &Value, b: &Value) -> bool {
             if x.len() != y.len() {
                 return false;
             }
-            x.iter().all(|(k, v)| y.get(k).map_or(false, |v2| values_equal(v, v2)))
+            x.iter()
+                .all(|(k, v)| y.get(k).map_or(false, |v2| values_equal(v, v2)))
         }
         (Value::Error(x), Value::Error(y)) => x == y,
         _ => false,

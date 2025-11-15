@@ -73,4 +73,3 @@ pub struct IoConfig {
     pub filesystem: FsConfig,
     pub network: NetConfig,
 }
-

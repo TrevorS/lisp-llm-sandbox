@@ -217,9 +217,7 @@ pub fn map_entries(args: &[Value]) -> Result<Value, EvalError> {
 
     let mut entries: Vec<_> = map
         .iter()
-        .map(|(k, v)| {
-            Value::List(vec![Value::Keyword(k.clone()), v.clone()])
-        })
+        .map(|(k, v)| Value::List(vec![Value::Keyword(k.clone()), v.clone()]))
         .collect();
 
     entries.sort_by(|a, b| match (a, b) {

@@ -67,9 +67,7 @@ fn json_to_value(json: &serde_json::Value) -> Value {
             }
         }
         serde_json::Value::String(s) => Value::String(s.clone()),
-        serde_json::Value::Array(arr) => {
-            Value::List(arr.iter().map(json_to_value).collect())
-        }
+        serde_json::Value::Array(arr) => Value::List(arr.iter().map(json_to_value).collect()),
         serde_json::Value::Object(obj) => {
             let mut map = HashMap::new();
             for (key, val) in obj {
@@ -117,8 +115,8 @@ fn json_pretty(args: &[Value]) -> Result<Value, EvalError> {
     }
 
     let json_value = value_to_json(&args[0])?;
-    let json_string = serde_json::to_string_pretty(&json_value)
-        .map_err(|e| EvalError::Custom(e.to_string()))?;
+    let json_string =
+        serde_json::to_string_pretty(&json_value).map_err(|e| EvalError::Custom(e.to_string()))?;
 
     Ok(Value::String(json_string))
 }
@@ -237,9 +235,7 @@ Same as json:encode but with indentation and newlines for readability.
 }\"
 ```"
         .to_string(),
-        examples: vec![
-            "(json:pretty {:x 1 :y 2}) => pretty JSON".to_string(),
-        ],
+        examples: vec!["(json:pretty {:x 1 :y 2}) => pretty JSON".to_string()],
         related: vec!["json:encode".to_string()],
         category: "JSON".to_string(),
     });

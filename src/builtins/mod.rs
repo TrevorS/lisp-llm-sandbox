@@ -2,6 +2,17 @@
 //!
 //! Core built-in functions for the Lisp interpreter, organized into 12 categories with 55 total functions.
 //!
+//! ## Naming Convention
+//!
+//! All builtin functions use **kebab-case WITHOUT namespaces** (e.g., `map-get`, `string-split`, `http-request`)
+//! because they are fundamental language primitives.
+//!
+//! For domain-specific helpers or library-like APIs with 3+ related functions,
+//! create a stdlib module with namespaced names instead (see src/stdlib/).
+//! For example: `json:encode`, `http:body`, `map:query`
+//!
+//! See CLAUDE.md "Naming Conventions" section for detailed guidance.
+//!
 //! ## Categories
 //!
 //! - **[arithmetic]** (5): +, -, *, /, % - Numeric operations

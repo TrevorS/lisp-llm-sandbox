@@ -197,6 +197,48 @@ The test suite has **237 tests** organized across 6 test suites:
 
 ## Code Organization Principles
 
+### Naming Conventions: Namespace vs Kebab-Case
+
+The project uses a **hybrid namespacing approach** inspired by Clojure:
+
+#### When to Use Namespaces (`module:function`)
+
+Use namespaces for **domain-specific helper modules** — cohesive sets of 3+ functions that:
+- Work together on a specific concept or data type
+- Form a library-like API
+- Are not fundamental language primitives
+
+**Examples:**
+- `json:encode`, `json:decode`, `json:pretty` — JSON serialization module
+- `http:body`, `http:status`, `http:check-status` — HTTP response helpers
+- `map:query`, `map:select`, `map:update` — Advanced map utilities
+
+#### When to Use Kebab-Case (`function-name`)
+
+Use kebab-case for **core primitives and standard operations**:
+- Language primitives: `+`, `-`, `if`, `define`, `lambda`
+- Core data structure operations: `cons`, `car`, `cdr`, `map-get`, `map-set`
+- Standard library essentials: `map`, `filter`, `reduce`
+- Basic I/O operations: `print`, `read-file`, `http-request`
+
+**Examples:**
+- `http-request` — primitive network operation
+- `map-get`, `map-set` — fundamental map operations
+- `string-split`, `string-trim` — core string operations
+
+#### Rationale
+
+This convention provides:
+1. **Familiarity** — Common operations stay short (`filter`, `map-get`)
+2. **Organization** — Related functions are visually grouped (`json:*`, `http:*`)
+3. **Clarity** — Namespaces signal "library module" vs "core primitive"
+4. **Discoverability** — Tab-completion friendly for module exploration
+
+#### Edge Cases
+
+- **`map` vs `map:*`**: The higher-order `map` function (applies function to list elements) is distinct from `map:*` functions (operate on map data structures). This is intentional.
+- **String functions**: All remain unnamespaced because they're considered core language operations, not a domain-specific module.
+
 ### Separation of Concerns
 - `parser.rs` - Only parsing, no evaluation
 - `eval.rs` - Only evaluation logic, uses parser as input; contains special forms + registration functions

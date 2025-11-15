@@ -1,7 +1,18 @@
 // ABOUTME: Registry for standard library function documentation
+//
 // This module registers help entries for all stdlib functions with proper categorization.
 // When stdlib modules are loaded, their functions get registered here with the "Standard Library"
 // category, distinguishing them from true user-defined functions that appear later.
+//
+// ## Naming Convention
+//
+// Stdlib functions use NAMESPACED naming (module:function) to distinguish them from core
+// primitives. This is a Clojure-style convention where:
+//
+// - Namespaced functions (json:encode, http:body, map:query) are domain-specific helpers
+// - Kebab-case functions (http-request, map-get, filter) are core primitives
+//
+// For full details, see CLAUDE.md "Naming Conventions" section.
 
 use crate::help::HelpEntry;
 

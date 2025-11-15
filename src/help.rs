@@ -237,13 +237,17 @@ pub fn format_quick_reference() -> String {
     ];
 
     // Add any categories not in preferred list (sorted alphabetically)
-    let mut other_categories: Vec<&str> = by_cat.keys()
+    let mut other_categories: Vec<&str> = by_cat
+        .keys()
         .filter(|cat| !preferred_order.contains(&cat.as_str()))
         .map(|s| s.as_str())
         .collect();
     other_categories.sort();
 
-    let all_categories = preferred_order.into_iter().chain(other_categories.into_iter()).collect::<Vec<_>>();
+    let all_categories = preferred_order
+        .into_iter()
+        .chain(other_categories.into_iter())
+        .collect::<Vec<_>>();
 
     for category in all_categories {
         if let Some(entries) = by_cat.get(category) {

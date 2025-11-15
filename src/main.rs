@@ -14,10 +14,8 @@ mod tools;
 mod value;
 
 use builtins::{register_builtins, set_sandbox_storage};
-use stdlib::register_stdlib;
-use stdlib_registry::register_stdlib_functions;
 use clap::Parser;
-use config::{FsConfig, NetConfig, WELCOME_MESSAGE, WELCOME_SUBTITLE, WELCOME_FOOTER};
+use config::{FsConfig, NetConfig, WELCOME_FOOTER, WELCOME_MESSAGE, WELCOME_SUBTITLE};
 use env::Environment;
 use eval::eval_with_macros;
 use highlighter::LispHelper;
@@ -28,6 +26,8 @@ use rustyline::{Config, Editor};
 use sandbox::Sandbox;
 use std::path::PathBuf;
 use std::rc::Rc;
+use stdlib::register_stdlib;
+use stdlib_registry::register_stdlib_functions;
 
 /// Lisp interpreter with sandboxed I/O capabilities
 #[derive(Parser, Debug)]
@@ -111,7 +111,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         for (module_name, module_code) in &modules {
             match load_stdlib(module_code, env.clone(), &mut macro_reg) {
                 Ok(_) => {} // Silently succeed
-                Err(e) => eprintln!("Warning: Failed to load stdlib module {}: {}", module_name, e),
+                Err(e) => eprintln!(
+                    "Warning: Failed to load stdlib module {}: {}",
+                    module_name, e
+                ),
             }
         }
 

@@ -244,15 +244,18 @@ pub fn file_stat(args: &[Value]) -> Result<Value, EvalError> {
             .as_ref()
             .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
 
-        sandbox.file_stat(path).map(|stat| {
-            let mut result_map = HashMap::new();
-            result_map.insert("size".to_string(), Value::Number(stat.size as f64));
-            result_map.insert("type".to_string(), Value::String(stat.file_type));
-            result_map.insert("modified".to_string(), Value::Number(stat.modified));
-            result_map.insert("accessed".to_string(), Value::Number(stat.accessed));
-            result_map.insert("created".to_string(), Value::Number(stat.created));
-            result_map.insert("readonly".to_string(), Value::Bool(stat.readonly));
-            Value::Map(result_map)
-        }).map_err(|e| EvalError::IoError(e.to_string()))
+        sandbox
+            .file_stat(path)
+            .map(|stat| {
+                let mut result_map = HashMap::new();
+                result_map.insert("size".to_string(), Value::Number(stat.size as f64));
+                result_map.insert("type".to_string(), Value::String(stat.file_type));
+                result_map.insert("modified".to_string(), Value::Number(stat.modified));
+                result_map.insert("accessed".to_string(), Value::Number(stat.accessed));
+                result_map.insert("created".to_string(), Value::Number(stat.created));
+                result_map.insert("readonly".to_string(), Value::Bool(stat.readonly));
+                Value::Map(result_map)
+            })
+            .map_err(|e| EvalError::IoError(e.to_string()))
     })
 }
