@@ -88,11 +88,20 @@ where
 ///
 /// Returns a connection map with `:handle` field added.
 ///
+/// **IMPORTANT**: Connections MUST be manually closed with `db:close` to prevent
+/// resource leaks. Each open connection consumes memory and a database handle.
+/// Failing to close connections can exhaust system resources.
+///
 /// # Examples
 ///
 /// ```lisp
 /// (db:open {:backend "sqlite" :path "users.db"})
 /// => {:backend "sqlite" :path "users.db" :handle 1}
+///
+/// ;; Always close connections when done
+/// (define conn (db:open {:backend "sqlite" :path "users.db"}))
+/// (db:query conn "SELECT * FROM users" '())
+/// (db:close conn)  ; Important: Clean up resources
 /// ```
 ///
 /// # See Also
