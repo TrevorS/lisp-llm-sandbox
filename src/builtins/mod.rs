@@ -37,7 +37,7 @@ use crate::help::HelpEntry;
 use crate::sandbox::Sandbox;
 use crate::value::Value;
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // ============================================================================
 // Builtin Auto-Registration Infrastructure
@@ -100,10 +100,16 @@ pub mod types;
 ///
 /// This function automatically discovers and registers all functions marked with
 /// #[builtin] across all modules via the inventory crate's compile-time collection.
-pub fn register_builtins(env: Rc<Environment>) {
+pub fn register_builtins(env: Arc<Environment>) {
+    // Set the global environment for define() calls
+    crate::eval::set_global_env(env.clone());
+
     // Automatically iterate over all collected builtins
     for builtin in inventory::iter::<BuiltinRegistration> {
-        env.define(builtin.name.to_string(), Value::BuiltIn(builtin.function));
+        crate::eval::extend_global_env(
+            builtin.name.to_string(),
+            Value::BuiltIn(builtin.function)
+        );
 
         // Convert static help data to HelpEntry
         crate::help::register_help(HelpEntry {

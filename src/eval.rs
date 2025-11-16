@@ -5,18 +5,46 @@ use crate::error::EvalError;
 use crate::macros::MacroRegistry;
 use crate::parser;
 use crate::value::Value;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
+
+// Thread-local storage for the global environment (used by define)
+// This allows define to update the global environment while maintaining immutability
+thread_local! {
+    static GLOBAL_ENV: RwLock<Option<Arc<Environment>>> = RwLock::new(None);
+}
+
+/// Set the global environment for this thread (used by REPL/main)
+pub fn set_global_env(env: Arc<Environment>) {
+    GLOBAL_ENV.with(|global| {
+        *global.write().unwrap() = Some(env);
+    });
+}
+
+/// Get the current global environment
+pub fn get_global_env() -> Option<Arc<Environment>> {
+    GLOBAL_ENV.with(|global| global.read().unwrap().clone())
+}
+
+/// Update the global environment with a new binding
+pub fn extend_global_env(name: String, value: Value) {
+    GLOBAL_ENV.with(|global| {
+        let mut guard = global.write().unwrap();
+        if let Some(env) = guard.as_ref() {
+            *guard = Some(env.extend(name, value));
+        }
+    });
+}
 
 /// Main evaluation function with tail call optimization
 #[allow(dead_code)]
-pub fn eval(expr: Value, env: Rc<Environment>) -> Result<Value, EvalError> {
+pub fn eval(expr: Value, env: Arc<Environment>) -> Result<Value, EvalError> {
     eval_with_macros(expr, env, &mut MacroRegistry::new())
 }
 
 /// Evaluation function with macro registry support
 pub fn eval_with_macros(
     mut expr: Value,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     let mut current_env = env;
@@ -155,9 +183,9 @@ pub fn eval_with_macros(
                                 }
 
                                 // Create new environment for lambda
-                                let new_env = Environment::with_parent(lambda_env);
+                                let mut new_env = Environment::with_parent(lambda_env);
                                 for (param, arg) in params.iter().zip(args.iter()) {
-                                    new_env.define(param.clone(), arg.clone());
+                                    new_env = new_env.extend(param.clone(), arg.clone());
                                 }
 
                                 // Tail call: set up for next iteration
@@ -190,7 +218,7 @@ pub fn eval_with_macros(
 /// - (define (f x) body) - function definition (syntactic sugar for lambda)
 fn eval_define(
     args: &[Value],
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 2 {
@@ -203,7 +231,7 @@ fn eval_define(
         // Variable definition: (define x 42)
         Value::Symbol(name) => {
             let value = eval_with_macros(args[1].clone(), env.clone(), macro_reg)?;
-            env.define(name.clone(), value);
+            extend_global_env(name.clone(), value);
             Ok(Value::Symbol(name.clone()))
         }
 
@@ -266,12 +294,12 @@ fn eval_define(
             let lambda = Value::Lambda {
                 params,
                 body,
-                env: env.clone(),
+                env: Arc::clone(&env),
                 docstring,
             };
 
-            // Define it
-            env.define(name.clone(), lambda);
+            // Define it in global env
+            extend_global_env(name.clone(), lambda);
             Ok(Value::Symbol(name))
         }
 
@@ -283,7 +311,7 @@ fn eval_define(
 
 /// Evaluate a lambda expression
 /// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
-fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
+fn eval_lambda(args: &[Value], env: Arc<Environment>) -> Result<Value, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::Custom(
             "lambda requires at least 2 arguments (params and body)".to_string(),
@@ -335,7 +363,7 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
 /// (let ((x 1) (y 2)) body)
 fn eval_let(
     args: &[Value],
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.is_empty() {
@@ -348,7 +376,7 @@ fn eval_let(
     };
 
     // Create new environment as child of current env
-    let new_env = Environment::with_parent(env);
+    let mut new_env = Environment::with_parent(env);
 
     // Evaluate bindings and add to new environment
     for binding in bindings {
@@ -359,7 +387,7 @@ fn eval_let(
                     _ => return Err(EvalError::Custom("let: binding name must be symbol".into())),
                 };
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
-                new_env.define(name, value);
+                new_env = new_env.extend(name, value);
             }
             _ => {
                 return Err(EvalError::Custom(
@@ -382,7 +410,7 @@ fn eval_let(
 fn eval_quasiquote(
     arg: Value,
     depth: usize,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     match arg {
@@ -472,7 +500,7 @@ fn eval_quasiquote(
 /// (defmacro name (params) body)
 fn eval_defmacro(
     args: &[Value],
-    _env: Rc<Environment>,
+    _env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 3 {
@@ -516,7 +544,7 @@ fn eval_defmacro(
 fn expand_macros(
     expr: Value,
     macro_reg: &MacroRegistry,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
 ) -> Result<Value, EvalError> {
     match expr {
         Value::List(ref items) if !items.is_empty() => {
@@ -530,10 +558,10 @@ fn expand_macros(
                             return Err(EvalError::ArityMismatch);
                         }
 
-                        let macro_env = Environment::with_parent(env.clone());
+                        let mut macro_env = Environment::with_parent(env.clone());
                         for (param, arg) in params.iter().zip(args.iter()) {
                             // Arguments to macros are NOT evaluated yet
-                            macro_env.define(param.clone(), arg.clone());
+                            macro_env = macro_env.extend(param.clone(), arg.clone());
                         }
 
                         // Evaluate body in macro environment (this handles quasiquote expansion)
