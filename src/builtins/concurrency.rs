@@ -17,28 +17,27 @@ use crossbeam_channel::{bounded, unbounded};
 use lisp_macros::builtin;
 use std::sync::Arc;
 
+/// Create a new channel for concurrent communication.
+///
+/// **Parameters:**
+/// - capacity (optional): Buffer size (number). Omit for unbuffered channel.
+///
+/// **Returns:** A new channel
+///
+/// **Examples:**
+/// ```lisp
+/// (make-channel)       ; Unbuffered channel
+/// (make-channel 10)    ; Buffered channel with capacity 10
+/// ```
+///
+/// **Notes:**
+/// - Unbuffered channels block on send until a receiver is ready
+/// - Buffered channels block only when the buffer is full
+/// - Channels are thread-safe and can be shared across goroutines
 #[builtin(
     name = "make-channel",
-    signature = "(make-channel [capacity])",
-    description = "Create a new channel for concurrent communication.
-
-**Parameters:**
-- capacity (optional): Buffer size (number). Omit for unbuffered channel.
-
-**Returns:** A new channel
-
-**Examples:**
-```lisp
-(make-channel)       ; Unbuffered channel
-(make-channel 10)    ; Buffered channel with capacity 10
-```
-
-**Notes:**
-- Unbuffered channels block on send until a receiver is ready
-- Buffered channels block only when the buffer is full
-- Channels are thread-safe and can be shared across goroutines",
     category = "Concurrency",
-    related = ["channel-send", "channel-recv", "channel-close", "channel?"]
+    related(channel-send, channel-recv, channel-close, channel?)
 )]
 fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
     match args.len() {
@@ -69,30 +68,29 @@ fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+/// Send a value to a channel (blocking operation).
+///
+/// **Parameters:**
+/// - channel: The channel to send to
+/// - value: The value to send
+///
+/// **Returns:** The sent value
+///
+/// **Examples:**
+/// ```lisp
+/// (define ch (make-channel))
+/// (channel-send ch 42)
+/// (channel-send ch "hello")
+/// ```
+///
+/// **Notes:**
+/// - Blocks if the channel buffer is full (or unbuffered and no receiver ready)
+/// - Returns error if channel is closed
+/// - Thread-safe operation
 #[builtin(
     name = "channel-send",
-    signature = "(channel-send channel value)",
-    description = "Send a value to a channel (blocking operation).
-
-**Parameters:**
-- channel: The channel to send to
-- value: The value to send
-
-**Returns:** The sent value
-
-**Examples:**
-```lisp
-(define ch (make-channel))
-(channel-send ch 42)
-(channel-send ch \"hello\")
-```
-
-**Notes:**
-- Blocks if the channel buffer is full (or unbuffered and no receiver ready)
-- Returns error if channel is closed
-- Thread-safe operation",
     category = "Concurrency",
-    related = ["make-channel", "channel-recv", "channel-close"]
+    related(make-channel, channel-recv, channel-close)
 )]
 fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
@@ -111,29 +109,28 @@ fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+/// Receive a value from a channel (blocking operation).
+///
+/// **Parameters:**
+/// - channel: The channel to receive from
+///
+/// **Returns:** The received value, or an error if the channel is closed
+///
+/// **Examples:**
+/// ```lisp
+/// (define ch (make-channel))
+/// (spawn (lambda () (channel-send ch 42)))
+/// (define val (channel-recv ch))  ; val = 42
+/// ```
+///
+/// **Notes:**
+/// - Blocks until a value is available
+/// - Returns error value if channel is closed and empty
+/// - Thread-safe operation
 #[builtin(
     name = "channel-recv",
-    signature = "(channel-recv channel)",
-    description = "Receive a value from a channel (blocking operation).
-
-**Parameters:**
-- channel: The channel to receive from
-
-**Returns:** The received value, or an error if the channel is closed
-
-**Examples:**
-```lisp
-(define ch (make-channel))
-(spawn (lambda () (channel-send ch 42)))
-(define val (channel-recv ch))  ; val = 42
-```
-
-**Notes:**
-- Blocks until a value is available
-- Returns error value if channel is closed and empty
-- Thread-safe operation",
     category = "Concurrency",
-    related = ["make-channel", "channel-send", "channel-close"]
+    related(make-channel, channel-send, channel-close)
 )]
 fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
@@ -148,31 +145,30 @@ fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+/// Close a channel, preventing further sends.
+///
+/// **Parameters:**
+/// - channel: The channel to close
+///
+/// **Returns:** nil
+///
+/// **Examples:**
+/// ```lisp
+/// (define ch (make-channel))
+/// (channel-send ch 1)
+/// (channel-close ch)
+/// (channel-send ch 2)  ; Error: channel is closed
+/// ```
+///
+/// **Notes:**
+/// - After closing, sends will fail
+/// - Receives will succeed until the channel is drained
+/// - Closing an already-closed channel is a no-op
+/// - Thread-safe operation
 #[builtin(
     name = "channel-close",
-    signature = "(channel-close channel)",
-    description = "Close a channel, preventing further sends.
-
-**Parameters:**
-- channel: The channel to close
-
-**Returns:** nil
-
-**Examples:**
-```lisp
-(define ch (make-channel))
-(channel-send ch 1)
-(channel-close ch)
-(channel-send ch 2)  ; Error: channel is closed
-```
-
-**Notes:**
-- After closing, sends will fail
-- Receives will succeed until the channel is drained
-- Closing an already-closed channel is a no-op
-- Thread-safe operation",
     category = "Concurrency",
-    related = ["make-channel", "channel-send", "channel-recv"]
+    related(make-channel, channel-send, channel-recv)
 )]
 fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
@@ -191,24 +187,23 @@ fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+/// Check if a value is a channel.
+///
+/// **Parameters:**
+/// - value: The value to check
+///
+/// **Returns:** #t if value is a channel, #f otherwise
+///
+/// **Examples:**
+/// ```lisp
+/// (channel? (make-channel))        ; #t
+/// (channel? 42)                    ; #f
+/// (channel? "hello")                ; #f
+/// ```
 #[builtin(
     name = "channel?",
-    signature = "(channel? value)",
-    description = "Check if a value is a channel.
-
-**Parameters:**
-- value: The value to check
-
-**Returns:** #t if value is a channel, #f otherwise
-
-**Examples:**
-```lisp
-(channel? (make-channel))        ; #t
-(channel? 42)                    ; #f
-(channel? \"hello\")               ; #f
-```",
     category = "Concurrency",
-    related = ["make-channel", "number?", "string?", "list?"]
+    related(make-channel, number?, string?, list?)
 )]
 fn channel_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
@@ -218,41 +213,40 @@ fn channel_p(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(matches!(args[0], Value::Channel { .. })))
 }
 
+/// Spawn a goroutine to execute a zero-argument function concurrently.
+///
+/// **Parameters:**
+/// - function: A lambda with zero parameters to execute in a new thread
+///
+/// **Returns:** A channel from which the result can be received
+///
+/// **Examples:**
+/// ```lisp
+/// ;; Spawn a simple computation
+/// (define result-ch (spawn (lambda () (+ 1 2 3))))
+/// (channel-recv result-ch)  ; => 6
+///
+/// ;; Spawn with side effects
+/// (define ch (make-channel))
+/// (spawn (lambda () (channel-send ch 42)))
+/// (channel-recv ch)  ; => 42
+///
+/// ;; Multiple concurrent tasks
+/// (define ch1 (spawn (lambda () (* 10 10))))
+/// (define ch2 (spawn (lambda () (+ 5 5))))
+/// (list (channel-recv ch1) (channel-recv ch2))  ; => (100 10)
+/// ```
+///
+/// **Notes:**
+/// - The function must take zero parameters
+/// - Errors in the spawned function are caught and sent as Error values
+/// - The spawned thread has its own macro registry
+/// - Thread-safe: uses Arc-based environments for safe concurrent execution
+/// - Non-blocking: spawn returns immediately, computation runs in background
 #[builtin(
     name = "spawn",
-    signature = "(spawn function)",
-    description = "Spawn a goroutine to execute a zero-argument function concurrently.
-
-**Parameters:**
-- function: A lambda with zero parameters to execute in a new thread
-
-**Returns:** A channel from which the result can be received
-
-**Examples:**
-```lisp
-;; Spawn a simple computation
-(define result-ch (spawn (lambda () (+ 1 2 3))))
-(channel-recv result-ch)  ; => 6
-
-;; Spawn with side effects
-(define ch (make-channel))
-(spawn (lambda () (channel-send ch 42)))
-(channel-recv ch)  ; => 42
-
-;; Multiple concurrent tasks
-(define ch1 (spawn (lambda () (* 10 10))))
-(define ch2 (spawn (lambda () (+ 5 5))))
-(list (channel-recv ch1) (channel-recv ch2))  ; => (100 10)
-```
-
-**Notes:**
-- The function must take zero parameters
-- Errors in the spawned function are caught and sent as Error values
-- The spawned thread has its own macro registry
-- Thread-safe: uses Arc-based environments for safe concurrent execution
-- Non-blocking: spawn returns immediately, computation runs in background",
     category = "Concurrency",
-    related = ["make-channel", "channel-recv", "channel-send"]
+    related(make-channel, channel-recv, channel-send)
 )]
 fn spawn(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
@@ -314,48 +308,47 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
+/// Spawn a supervised goroutine with structured error handling.
+///
+/// **Parameters:**
+/// - function: A lambda with zero parameters to execute in a new thread
+///
+/// **Returns:** A channel that receives a result map with either `:ok` or `:error`
+///
+/// **Examples:**
+/// ```lisp
+/// ;; Successful execution
+/// (define result-ch (spawn-link (lambda () (+ 1 2 3))))
+/// (define result (channel-recv result-ch))
+/// ;; result = {:ok 6}
+///
+/// ;; Error handling
+/// (define result-ch (spawn-link (lambda () (/ 1 0))))
+/// (define result (channel-recv result-ch))
+/// (if (map-get result :error)
+///   (println "Error:" (map-get result :error))
+///   (println "Success:" (map-get result :ok)))
+///
+/// ;; Using with http-request for robust error handling
+/// (define result-ch (spawn-link (lambda ()
+///   (http-request "https://api.example.com/data" {}))))
+/// (define result (channel-recv result-ch))
+/// (if (map-get result :error)
+///   {:status "failed" :reason (map-get result :error)}
+///   {:status "success" :data (map-get result :ok)})
+/// ```
+///
+/// **Notes:**
+/// - Returns `{:ok value}` on success
+/// - Returns `{:error "error message"}` on failure
+/// - Errors never crash the parent thread
+/// - More structured than spawn for error handling
+/// - Ideal for unreliable operations (network, I/O, external services)
+/// - Use with map-get to check :error or :ok keys
 #[builtin(
     name = "spawn-link",
-    signature = "(spawn-link function)",
-    description = "Spawn a supervised goroutine with structured error handling.
-
-**Parameters:**
-- function: A lambda with zero parameters to execute in a new thread
-
-**Returns:** A channel that receives a result map with either `:ok` or `:error`
-
-**Examples:**
-```lisp
-;; Successful execution
-(define result-ch (spawn-link (lambda () (+ 1 2 3))))
-(define result (channel-recv result-ch))
-;; result = {:ok 6}
-
-;; Error handling
-(define result-ch (spawn-link (lambda () (/ 1 0))))
-(define result (channel-recv result-ch))
-(if (map-get result :error)
-  (println \"Error:\" (map-get result :error))
-  (println \"Success:\" (map-get result :ok)))
-
-;; Using with http-request for robust error handling
-(define result-ch (spawn-link (lambda ()
-  (http-request \"https://api.example.com/data\" {}))))
-(define result (channel-recv result-ch))
-(if (map-get result :error)
-  {:status \"failed\" :reason (map-get result :error)}
-  {:status \"success\" :data (map-get result :ok)})
-```
-
-**Notes:**
-- Returns `{:ok value}` on success
-- Returns `{:error \"error message\"}` on failure
-- Errors never crash the parent thread
-- More structured than spawn for error handling
-- Ideal for unreliable operations (network, I/O, external services)
-- Use with map-get to check :error or :ok keys",
     category = "Concurrency",
-    related = ["spawn", "make-channel", "channel-recv", "map-get"]
+    related(spawn, make-channel, channel-recv, map-get)
 )]
 fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {

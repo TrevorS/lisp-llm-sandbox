@@ -534,3 +534,209 @@ fn test_compose() {
         _ => panic!("Expected Number(12)"),
     }
 }
+
+// ============================================================================
+// String Functions Tests (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_string_capitalize() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(r#"(string-capitalize "hello world")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "Hello world"),
+        _ => panic!("Expected capitalized string"),
+    }
+
+    // Test empty string
+    let result = eval_code(r#"(string-capitalize "")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, ""),
+        _ => panic!("Expected empty string"),
+    }
+}
+
+#[test]
+fn test_string_concat() {
+    let (env, mut macro_reg) = setup();
+
+    // Basic concatenation
+    let result = eval_code(
+        r#"(string-concat '("Hello" " " "World" "!"))"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "Hello World!"),
+        _ => panic!("Expected concatenated string"),
+    }
+
+    // Empty list
+    let result = eval_code(r#"(string-concat '())"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, ""),
+        _ => panic!("Expected empty string"),
+    }
+}
+
+#[test]
+fn test_string_reverse() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(r#"(string-reverse "hello")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "olleh"),
+        _ => panic!("Expected reversed string"),
+    }
+
+    // Palindrome
+    let result = eval_code(r#"(string-reverse "racecar")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "racecar"),
+        _ => panic!("Expected palindrome"),
+    }
+}
+
+#[test]
+fn test_string_repeat() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(r#"(string-repeat "Ha" 3)"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "HaHaHa"),
+        _ => panic!("Expected repeated string"),
+    }
+
+    // Zero repetitions
+    let result = eval_code(r#"(string-repeat "test" 0)"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, ""),
+        _ => panic!("Expected empty string"),
+    }
+}
+
+#[test]
+fn test_string_words() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(
+        r#"(string-words "hello world from lisp")"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+
+    if let value::Value::List(words) = result {
+        assert_eq!(words.len(), 4);
+        assert!(matches!(&words[0], value::Value::String(s) if s == "hello"));
+        assert!(matches!(&words[3], value::Value::String(s) if s == "lisp"));
+    } else {
+        panic!("Expected list of words");
+    }
+}
+
+#[test]
+fn test_string_lines() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(
+        r#"(string-lines "line1\nline2\nline3")"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+
+    if let value::Value::List(lines) = result {
+        assert_eq!(lines.len(), 3);
+        assert!(matches!(&lines[0], value::Value::String(s) if s == "line1"));
+        assert!(matches!(&lines[2], value::Value::String(s) if s == "line3"));
+    } else {
+        panic!("Expected list of lines");
+    }
+}
+
+#[test]
+fn test_string_pad_left() {
+    let (env, mut macro_reg) = setup();
+
+    // Zero-padding
+    let result = eval_code(r#"(string-pad-left "42" 5 "0")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "00042"),
+        _ => panic!("Expected zero-padded string"),
+    }
+
+    // Already long enough
+    let result = eval_code(r#"(string-pad-left "test" 2 "x")"#, env.clone(), &mut macro_reg).unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "test"),
+        _ => panic!("Expected unchanged string"),
+    }
+}
+
+// ============================================================================
+// HTTP Helper Functions Tests (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_http_check_status() {
+    let (env, mut macro_reg) = setup();
+
+    // 200 OK should return true
+    let result = eval_code(
+        r#"(http:check-status {:status 200 :body "OK"})"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+    match result {
+        value::Value::Bool(b) => assert!(b),
+        _ => panic!("Expected true for 200 status"),
+    }
+
+    // 404 should return false
+    let result = eval_code(
+        r#"(http:check-status {:status 404 :body "Not Found"})"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+    match result {
+        value::Value::Bool(b) => assert!(!b),
+        _ => panic!("Expected false for 404 status"),
+    }
+}
+
+#[test]
+fn test_http_body() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(
+        r#"(http:body {:status 200 :body "response text"})"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+    match result {
+        value::Value::String(s) => assert_eq!(s, "response text"),
+        _ => panic!("Expected body text"),
+    }
+}
+
+#[test]
+fn test_http_status() {
+    let (env, mut macro_reg) = setup();
+
+    let result = eval_code(
+        r#"(http:status {:status 201 :body "Created"})"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
+    match result {
+        value::Value::Number(n) => assert_eq!(n, 201.0),
+        _ => panic!("Expected status code 201"),
+    }
+}
