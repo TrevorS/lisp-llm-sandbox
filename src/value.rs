@@ -5,7 +5,6 @@ use crate::error::EvalError;
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
 use std::fmt;
-use std::rc::Rc;
 use std::sync::Arc;
 
 #[allow(dead_code)]
@@ -21,7 +20,7 @@ pub enum Value {
     Lambda {
         params: Vec<String>,
         body: Box<Value>,
-        env: Rc<Environment>,
+        env: Arc<Environment>,  // Changed from Rc to Arc for thread-safety
         docstring: Option<String>,
     },
     Macro {
