@@ -1,15 +1,15 @@
 // ABOUTME: Tests for concurrency primitives (channels)
 
 use lisp_llm_sandbox::*;
-use std::rc::Rc;
+use std::sync::Arc;
 
-fn setup() -> Rc<env::Environment> {
+fn setup() -> Arc<env::Environment> {
     let env = env::Environment::new();
     builtins::register_builtins(env.clone());
     env
 }
 
-fn eval_expr(code: &str, env: Rc<env::Environment>) -> Result<value::Value, error::EvalError> {
+fn eval_expr(code: &str, env: Arc<env::Environment>) -> Result<value::Value, error::EvalError> {
     let expr = parser::parse(code).map_err(|e| error::EvalError::Custom(e))?;
     let mut macro_reg = macros::MacroRegistry::new();
     eval::eval_with_macros(expr, env, &mut macro_reg)

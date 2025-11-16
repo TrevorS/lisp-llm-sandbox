@@ -17,7 +17,7 @@ use crate::help::HelpEntry;
 use crate::value::Value;
 use serde_json;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Convert Lisp Value to serde_json::Value
 fn value_to_json(value: &Value) -> Result<serde_json::Value, EvalError> {
@@ -122,11 +122,11 @@ fn json_pretty(args: &[Value]) -> Result<Value, EvalError> {
 }
 
 /// Register json module functions in the environment
-pub fn register(env: &Rc<Environment>) {
-    // Register functions with json: namespace
-    env.define("json:encode".to_string(), Value::BuiltIn(json_encode));
-    env.define("json:decode".to_string(), Value::BuiltIn(json_decode));
-    env.define("json:pretty".to_string(), Value::BuiltIn(json_pretty));
+pub fn register(_env: &Arc<Environment>) {
+    // Register functions with json: namespace using global environment
+    crate::eval::extend_global_env("json:encode".to_string(), Value::BuiltIn(json_encode));
+    crate::eval::extend_global_env("json:decode".to_string(), Value::BuiltIn(json_decode));
+    crate::eval::extend_global_env("json:pretty".to_string(), Value::BuiltIn(json_pretty));
 
     // Register help entries
     crate::help::register_help(HelpEntry {

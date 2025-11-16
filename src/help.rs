@@ -4,7 +4,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use termimad::MadSkin;
 
 // Forward declarations
@@ -78,11 +78,11 @@ impl Default for HelpRegistry {
 // Thread-local help registry
 thread_local! {
     static HELP_REGISTRY: RefCell<HelpRegistry> = RefCell::new(HelpRegistry::new());
-    static CURRENT_ENV: RefCell<Option<Rc<Environment>>> = const { RefCell::new(None) };
+    static CURRENT_ENV: RefCell<Option<Arc<Environment>>> = const { RefCell::new(None) };
 }
 
 /// Set the current environment for help lookup (needed for user-defined functions)
-pub fn set_current_env(env: Option<Rc<Environment>>) {
+pub fn set_current_env(env: Option<Arc<Environment>>) {
     CURRENT_ENV.with(|e| {
         *e.borrow_mut() = env;
     });
