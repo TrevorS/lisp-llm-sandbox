@@ -82,9 +82,21 @@ pub fn eval_with_macros(
                 if name == "nil" {
                     return Ok(Value::Nil);
                 }
-                return current_env
-                    .get(name)
-                    .ok_or_else(|| EvalError::UndefinedSymbol(name.clone()));
+
+                // Look in current environment first (for local bindings like let, lambda params)
+                if let Some(val) = current_env.get(name) {
+                    return Ok(val);
+                }
+
+                // Fallback to global environment if set (for top-level defines)
+                if let Some(global_env) = get_global_env() {
+                    if let Some(val) = global_env.get(name) {
+                        return Ok(val);
+                    }
+                }
+
+                // Not found anywhere
+                return Err(EvalError::UndefinedSymbol(name.clone()));
             }
 
             // Empty list evaluates to nil
@@ -884,8 +896,9 @@ mod tests {
             _ => panic!("Expected Symbol(\"f\")"),
         }
 
-        // Check that f is now defined as a lambda
-        match env.get("f") {
+        // Check that f is now defined as a lambda in global env
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("f") {
             Some(Value::Lambda { params, body, .. }) => {
                 assert_eq!(params.len(), 1);
                 assert_eq!(params[0], "x");
@@ -919,25 +932,32 @@ mod tests {
     }
 
     #[test]
-    fn test_shadowing_in_eval() {
-        let parent = Environment::new();
-        let parent = parent.extend("x".to_string(), Value::Number(10.0));
+    fn test_shadowing_with_let() {
+        // Note: In our immutable architecture, 'define' creates global bindings,
+        // while 'let' creates local bindings. This test shows local shadowing with 'let'.
+        let env = Environment::new();
+        let env = env.extend("x".to_string(), Value::Number(10.0));
 
-        let child = Environment::with_parent(parent);
-
-        // Define x in child scope
-        let define_expr = Value::List(vec![
-            Value::Symbol("define".to_string()),
+        // Use let to shadow x locally
+        let expr = Value::List(vec![
+            Value::Symbol("let".to_string()),
+            Value::List(vec![Value::List(vec![
+                Value::Symbol("x".to_string()),
+                Value::Number(20.0),
+            ])]),
             Value::Symbol("x".to_string()),
-            Value::Number(20.0),
         ]);
-        eval(define_expr, child.clone()).unwrap();
 
-        // Child should see its own value
-        let result = eval(Value::Symbol("x".to_string()), child).unwrap();
+        let result = eval(expr, env.clone()).unwrap();
         match result {
             Value::Number(n) => assert_eq!(n, 20.0),
             _ => panic!("Expected Number(20.0)"),
+        }
+
+        // Original x should still be 10
+        match env.get("x") {
+            Some(Value::Number(n)) => assert_eq!(n, 10.0),
+            _ => panic!("Expected x to still be 10.0"),
         }
     }
 
@@ -1379,8 +1399,9 @@ mod tests {
             _ => panic!("Expected Number(20.0)"),
         }
 
-        // Verify x was also defined
-        match env.get("x") {
+        // Verify x was also defined in global env
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 10.0),
             _ => panic!("Expected x to be defined as 10.0"),
         }
@@ -1461,7 +1482,7 @@ mod tests {
             _ => panic!("Expected Number(10.0)"),
         }
 
-        // Global x should still be 100
+        // Global x should still be 100 (unchanged by let)
         match env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 100.0),
             _ => panic!("Expected global x to still be 100.0"),
