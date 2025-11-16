@@ -17,7 +17,7 @@
 //! The `:handle` field contains a unique connection ID used to look up
 //! the actual database connection in the thread-local registry.
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_TWO_OR_THREE, ERR_SANDBOX_NOT_INIT};
 use crate::value::Value;
 use lisp_macros::builtin;
 use rusqlite::{params_from_iter, Connection};
@@ -57,7 +57,7 @@ fn remove_connection(handle: u64) -> Result<(), EvalError> {
         conns
             .borrow_mut()
             .remove(&handle)
-            .ok_or_else(|| EvalError::IoError(format!("Invalid connection handle: {}", handle)))
+            .ok_or_else(|| EvalError::runtime_error("database", format!("Invalid connection handle: {}", handle)))
             .map(|_| ())
     })
 }
@@ -71,7 +71,7 @@ where
         let conns_ref = conns.borrow();
         let conn = conns_ref
             .get(&handle)
-            .ok_or_else(|| EvalError::IoError(format!("Invalid connection handle: {}", handle)))?;
+            .ok_or_else(|| EvalError::runtime_error("database", format!("Invalid connection handle: {}", handle)))?;
         f(conn)
     })
 }
@@ -100,22 +100,22 @@ where
 /// db:close, db:exec, db:query
 pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("db:open", ARITY_ONE, args.len()));
     }
 
     let spec = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:open", "Map", &args[0], 0)),
     };
 
     // Extract backend
     let backend = spec
         .get("backend")
-        .ok_or_else(|| EvalError::IoError("Connection spec missing :backend key".to_string()))?;
+        .ok_or_else(|| EvalError::runtime_error("db:open", "Connection spec missing :backend key"))?;
 
     let backend_str = match backend {
         Value::String(s) => s.as_str(),
-        _ => return Err(EvalError::IoError("Backend must be a string".to_string())),
+        _ => return Err(EvalError::runtime_error("db:open", "Backend must be a string")),
     };
 
     // Currently only SQLite is supported
@@ -125,12 +125,12 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
             let path = spec
                 .get("path")
                 .ok_or_else(|| {
-                    EvalError::IoError("SQLite connection spec missing :path key".to_string())
+                    EvalError::runtime_error("db:open", "SQLite connection spec missing :path key")
                 })?;
 
             let path_str = match path {
                 Value::String(s) => s.as_str(),
-                _ => return Err(EvalError::IoError("Path must be a string".to_string())),
+                _ => return Err(EvalError::runtime_error("db:open", "Path must be a string")),
             };
 
             // Validate and construct full path through sandbox
@@ -138,18 +138,18 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
                 let sandbox_ref = s.borrow();
                 let sandbox = sandbox_ref
                     .as_ref()
-                    .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+                    .ok_or_else(|| EvalError::runtime_error("db:open", ERR_SANDBOX_NOT_INIT))?;
 
                 // Validate path format (no absolute paths, no .. traversals)
                 if path_str.starts_with('/') || path_str.starts_with("\\") {
-                    return Err(EvalError::IoError(format!(
+                    return Err(EvalError::runtime_error("db:open", format!(
                         "Absolute paths not allowed: {}",
                         path_str
                     )));
                 }
 
                 if path_str.contains("..") {
-                    return Err(EvalError::IoError(format!(
+                    return Err(EvalError::runtime_error("db:open", format!(
                         "Path traversal not allowed: {}",
                         path_str
                     )));
@@ -158,11 +158,11 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
                 // Get the full path by joining with first allowed path
                 let full_path = sandbox
                     .get_full_path(path_str)
-                    .map_err(|e| EvalError::IoError(e.to_string()))?;
+                    .map_err(|e| EvalError::runtime_error("db:open", e.to_string()))?;
 
                 // Open connection
                 let conn = Connection::open(&full_path)
-                    .map_err(|e| EvalError::IoError(format!("Failed to open database: {}", e)))?;
+                    .map_err(|e| EvalError::runtime_error("db:open", format!("Failed to open database: {}", e)))?;
 
                 // Store connection and get handle
                 let handle = store_connection(conn);
@@ -174,7 +174,7 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
                 Ok(Value::Map(result))
             })
         }
-        _ => Err(EvalError::IoError(format!(
+        _ => Err(EvalError::runtime_error("db:open", format!(
             "Unsupported database backend: {}",
             backend_str
         ))),
@@ -197,22 +197,22 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
 /// db:open, db:exec, db:query
 pub fn db_close(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("db:close", ARITY_ONE, args.len()));
     }
 
     let conn_map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:close", "Map", &args[0], 0)),
     };
 
     // Extract handle
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::IoError("Connection map missing :handle key".to_string()))?;
+        .ok_or_else(|| EvalError::runtime_error("db:close", "Connection map missing :handle key"))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::IoError("Handle must be a number".to_string())),
+        _ => return Err(EvalError::runtime_error("db:close", "Handle must be a number")),
     };
 
     // Remove connection from registry
@@ -245,28 +245,28 @@ pub fn db_close(args: &[Value]) -> Result<Value, EvalError> {
 /// db:query, db:open, db:close
 pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("db:exec", ARITY_TWO_OR_THREE, args.len()));
     }
 
     // Extract connection handle
     let conn_map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:exec", "Map", &args[0], 0)),
     };
 
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::IoError("Connection map missing :handle key".to_string()))?;
+        .ok_or_else(|| EvalError::runtime_error("db:exec", "Connection map missing :handle key"))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::IoError("Handle must be a number".to_string())),
+        _ => return Err(EvalError::runtime_error("db:exec", "Handle must be a number")),
     };
 
     // Extract SQL
     let sql = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:exec", "String", &args[1], 1)),
     };
 
     // Extract optional parameters
@@ -274,7 +274,7 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
         match &args[2] {
             Value::List(items) => items.clone(),
             Value::Nil => Vec::new(),
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("db:exec", "List", &args[2], 2)),
         }
     } else {
         Vec::new()
@@ -284,7 +284,7 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
     with_connection(handle, |conn| {
         let mut stmt = conn
             .prepare(sql)
-            .map_err(|e| EvalError::IoError(format!("Failed to prepare statement: {}", e)))?;
+            .map_err(|e| EvalError::runtime_error("db:exec", format!("Failed to prepare statement: {}", e)))?;
 
         // Convert Value parameters to rusqlite parameters
         let rusqlite_params: Vec<rusqlite::types::Value> = params
@@ -294,7 +294,7 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
 
         let rows_affected = stmt
             .execute(params_from_iter(rusqlite_params.iter()))
-            .map_err(|e| EvalError::IoError(format!("Failed to execute statement: {}", e)))?;
+            .map_err(|e| EvalError::runtime_error("db:exec", format!("Failed to execute statement: {}", e)))?;
 
         Ok(Value::Number(rows_affected as f64))
     })
@@ -324,28 +324,28 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
 /// db:exec, db:open, db:close
 pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("db:query", ARITY_TWO_OR_THREE, args.len()));
     }
 
     // Extract connection handle
     let conn_map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:query", "Map", &args[0], 0)),
     };
 
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::IoError("Connection map missing :handle key".to_string()))?;
+        .ok_or_else(|| EvalError::runtime_error("db:query", "Connection map missing :handle key"))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::IoError("Handle must be a number".to_string())),
+        _ => return Err(EvalError::runtime_error("db:query", "Handle must be a number")),
     };
 
     // Extract SQL
     let sql = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("db:query", "String", &args[1], 1)),
     };
 
     // Extract optional parameters
@@ -353,7 +353,7 @@ pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
         match &args[2] {
             Value::List(items) => items.clone(),
             Value::Nil => Vec::new(),
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("db:query", "List", &args[2], 2)),
         }
     } else {
         Vec::new()
@@ -363,7 +363,7 @@ pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
     with_connection(handle, |conn| {
         let mut stmt = conn
             .prepare(sql)
-            .map_err(|e| EvalError::IoError(format!("Failed to prepare statement: {}", e)))?;
+            .map_err(|e| EvalError::runtime_error("db:query", format!("Failed to prepare statement: {}", e)))?;
 
         // Convert Value parameters to rusqlite parameters
         let rusqlite_params: Vec<rusqlite::types::Value> = params
@@ -390,11 +390,11 @@ pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
 
                 Ok(Value::Map(row_map))
             })
-            .map_err(|e| EvalError::IoError(format!("Failed to execute query: {}", e)))?;
+            .map_err(|e| EvalError::runtime_error("db:query", format!("Failed to execute query: {}", e)))?;
 
         let result: Vec<Value> = rows
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| EvalError::IoError(format!("Failed to read query results: {}", e)))?;
+            .map_err(|e| EvalError::runtime_error("db:query", format!("Failed to read query results: {}", e)))?;
 
         Ok(Value::List(result))
     })
@@ -412,7 +412,7 @@ fn value_to_rusqlite(val: &Value) -> Result<rusqlite::types::Value, EvalError> {
         Value::String(s) => Ok(rusqlite::types::Value::Text(s.clone())),
         Value::Bool(true) => Ok(rusqlite::types::Value::Integer(1)),
         Value::Bool(false) => Ok(rusqlite::types::Value::Integer(0)),
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::runtime_error("database", format!("Unsupported type for database parameter: {}", val.type_name()))),
     }
 }
 
