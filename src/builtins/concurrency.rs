@@ -238,20 +238,104 @@ fn channel_p(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::Bool(matches!(args[0], Value::Channel { .. })))
 }
 
-// Note: spawn is intentionally left unimplemented in V1 due to thread-safety constraints.
-// The current environment system uses Rc<Environment> which is not Send across threads.
-//
-// To properly implement spawn, we would need to:
-// 1. Convert Environment to use Arc instead of Rc (major refactoring)
-// 2. Make the evaluator thread-safe
-// 3. Handle macro registry in a thread-safe way
-//
-// For V1, users can use channels for concurrent communication patterns without spawn.
-// A future version will add proper goroutine support.
-//
-// Example of what spawn would look like when implemented:
-// ```lisp
-// (define ch (make-channel))
-// (spawn (lambda () (channel-send ch 42)))
-// (channel-recv ch)  ; Returns 42
-// ```
+#[builtin(
+    name = "spawn",
+    signature = "(spawn function)",
+    description = "Spawn a goroutine to execute a zero-argument function concurrently.
+
+**Parameters:**
+- function: A lambda with zero parameters to execute in a new thread
+
+**Returns:** A channel from which the result can be received
+
+**Examples:**
+```lisp
+;; Spawn a simple computation
+(define result-ch (spawn (lambda () (+ 1 2 3))))
+(channel-recv result-ch)  ; => 6
+
+;; Spawn with side effects
+(define ch (make-channel))
+(spawn (lambda () (channel-send ch 42)))
+(channel-recv ch)  ; => 42
+
+;; Multiple concurrent tasks
+(define ch1 (spawn (lambda () (* 10 10))))
+(define ch2 (spawn (lambda () (+ 5 5))))
+(list (channel-recv ch1) (channel-recv ch2))  ; => (100 10)
+```
+
+**Notes:**
+- The function must take zero parameters
+- Errors in the spawned function are caught and sent as Error values
+- The spawned thread has its own macro registry
+- Thread-safe: uses Arc-based environments for safe concurrent execution
+- Non-blocking: spawn returns immediately, computation runs in background",
+    category = "Concurrency",
+    related = ["make-channel", "channel-recv", "channel-send"]
+)]
+fn spawn(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::Custom(
+            "spawn: expected 1 argument".to_string(),
+        ));
+    }
+
+    match &args[0] {
+        Value::Lambda {
+            params,
+            body,
+            env: lambda_env,
+            docstring: _,
+        } => {
+            // Verify zero-parameter lambda
+            if !params.is_empty() {
+                return Err(EvalError::Custom(
+                    "spawn: function must take zero parameters".to_string(),
+                ));
+            }
+
+            // Create result channel
+            let (sender, receiver) = unbounded();
+            let result_channel = Value::Channel {
+                sender: Arc::new(sender.clone()),
+                receiver: Arc::new(receiver),
+            };
+
+            // Clone what we need for the thread
+            let body_clone = body.clone();
+            let env_clone = Arc::clone(lambda_env);
+
+            // Get the global environment from the parent thread
+            let global_env = crate::eval::get_global_env();
+
+            // Spawn the thread
+            std::thread::spawn(move || {
+                // Initialize GLOBAL_ENV in this thread with the parent's global env
+                if let Some(global) = global_env {
+                    crate::eval::set_global_env(global);
+                }
+
+                // Create a new macro registry for this thread
+                let mut macro_reg = crate::macros::MacroRegistry::new();
+
+                // Evaluate the lambda body
+                let result = crate::eval::eval_with_macros(*body_clone, env_clone, &mut macro_reg);
+
+                // Send result or error
+                let value_to_send = match result {
+                    Ok(val) => val,
+                    Err(e) => Value::Error(format!("{:?}", e)),
+                };
+
+                // Send the result (ignore send errors - receiver might have been dropped)
+                let _ = sender.send(value_to_send);
+            });
+
+            Ok(result_channel)
+        }
+        _ => Err(EvalError::Custom(
+            "spawn: argument must be a lambda".to_string(),
+        )),
+    }
+}

@@ -305,13 +305,6 @@ impl Sandbox {
     // Network Operations
     // ========================================================================
 
-    /// Check if network is enabled
-    /// Reserved for future use in diagnostic/management functions
-    #[allow(dead_code)]
-    pub fn is_network_enabled(&self) -> bool {
-        self.net_config.enabled
-    }
-
     /// Check if an address is allowed
     fn is_address_allowed(&self, address: &str) -> bool {
         if !self.net_config.enabled {

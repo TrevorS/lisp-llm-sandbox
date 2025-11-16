@@ -59,14 +59,6 @@ impl HelpRegistry {
         }
         by_cat
     }
-
-    /// Get all function names
-    #[allow(dead_code)]
-    pub fn all_names(&self) -> Vec<String> {
-        let mut names: Vec<_> = self.entries.keys().cloned().collect();
-        names.sort();
-        names
-    }
 }
 
 impl Default for HelpRegistry {
@@ -162,12 +154,6 @@ pub fn get_help(name: &str) -> Option<HelpEntry> {
 /// Get all entries organized by category
 pub fn all_by_category() -> HashMap<String, Vec<HelpEntry>> {
     HELP_REGISTRY.with(|reg| reg.borrow().by_category())
-}
-
-/// Get all function names
-#[allow(dead_code)]
-pub fn all_names() -> Vec<String> {
-    HELP_REGISTRY.with(|reg| reg.borrow().all_names())
 }
 
 /// Format a single help entry for display with markdown rendering and syntax highlighting

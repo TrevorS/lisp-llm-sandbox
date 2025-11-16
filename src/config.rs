@@ -64,12 +64,3 @@ pub struct NetConfig {
     /// Empty = no restrictions (if enabled=true)
     pub allowed_addresses: Vec<String>,
 }
-
-/// Combined I/O sandbox configuration
-/// Reserved for future phases where full combined config builder is needed
-#[allow(dead_code)]
-#[derive(Debug, Clone, Default)]
-pub struct IoConfig {
-    pub filesystem: FsConfig,
-    pub network: NetConfig,
-}

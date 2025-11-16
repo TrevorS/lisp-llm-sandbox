@@ -1,9 +1,10 @@
 // ABOUTME: Environment module for managing variable bindings and scopes
 //
 // V2 Architecture: Thread-safe immutable environments using Arc
-// - Environments are immutable (HashMap not RefCell)
-// - Use Arc instead of Rc for Send + Sync
-// - define() replaced with extend() (returns new environment)
+// - Environments are immutable (HashMap not RefCell<HashMap>)
+// - Use Arc<Environment> instead of Rc<Environment> for Send + Sync
+// - extend() method returns new environment (functional/immutable pattern)
+// - Thread-local GLOBAL_ENV in eval.rs manages global definitions
 // - This enables safe concurrent execution with spawn
 
 use crate::error::EvalError;
@@ -36,7 +37,7 @@ impl Environment {
     }
 
     /// Extends environment with a new binding, returning new environment (functional)
-    /// This replaces the old define() method for immutable environments
+    /// This is the primary way to add bindings in the immutable V2 architecture
     pub fn extend(&self, name: String, value: Value) -> Arc<Environment> {
         let mut new_bindings = self.bindings.clone();
         new_bindings.insert(name, value);
@@ -44,18 +45,6 @@ impl Environment {
             bindings: new_bindings,
             parent: self.parent.clone(),
         })
-    }
-
-    /// Defines a binding in THIS scope (compatibility shim for non-concurrent code)
-    /// WARNING: This creates a new environment but doesn't return it!
-    /// Prefer extend() for new code
-    #[deprecated(note = "Use extend() instead for thread-safe immutable environments")]
-    #[allow(dead_code)]
-    pub fn define(&self, _name: String, _value: Value) {
-        // This is a shim for backward compatibility during migration
-        // It can't actually mutate the environment since it's immutable
-        // Callers need to be updated to use extend() and capture the result
-        panic!("define() called on immutable environment - use extend() instead");
     }
 
     /// Looks up a symbol in THIS scope and parent scopes recursively

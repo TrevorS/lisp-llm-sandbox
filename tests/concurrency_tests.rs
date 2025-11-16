@@ -259,3 +259,171 @@ fn test_channel_wrong_argument_count() {
     let result = eval_expr("(channel?)", env);
     assert!(result.is_err());
 }
+
+#[test]
+fn test_spawn_simple_computation() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn (lambda () (+ 1 2 3))))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Number(n) if n == 6.0));
+}
+
+#[test]
+fn test_spawn_returns_channel() {
+    let env = setup();
+
+    let code = r#"
+        (define result-ch (spawn (lambda () 42)))
+    "#;
+    eval_expr(code, env.clone()).unwrap();
+
+    let code = r#"(channel? result-ch)"#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Bool(true)));
+}
+
+#[test]
+fn test_spawn_with_channel_communication() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define ch (make-channel))
+            (spawn (lambda () (channel-send ch 42)))
+            (channel-recv ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Number(n) if n == 42.0));
+}
+
+#[test]
+fn test_spawn_multiple_concurrent_tasks() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define ch1 (spawn (lambda () (* 10 10))))
+            (define ch2 (spawn (lambda () (+ 5 5))))
+            (list (channel-recv ch1) (channel-recv ch2)))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::List(items) => {
+            assert_eq!(items.len(), 2);
+            assert!(matches!(items[0], value::Value::Number(n) if n == 100.0));
+            assert!(matches!(items[1], value::Value::Number(n) if n == 10.0));
+        }
+        _ => panic!("Expected list"),
+    }
+}
+
+#[test]
+fn test_spawn_with_string_result() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn (lambda () "hello from thread")))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::String(s) if s == "hello from thread"));
+}
+
+#[test]
+fn test_spawn_with_list_result() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn (lambda () (list 1 2 3))))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::List(items) => {
+            assert_eq!(items.len(), 3);
+            assert!(matches!(items[0], value::Value::Number(n) if n == 1.0));
+            assert!(matches!(items[1], value::Value::Number(n) if n == 2.0));
+            assert!(matches!(items[2], value::Value::Number(n) if n == 3.0));
+        }
+        _ => panic!("Expected list"),
+    }
+}
+
+#[test]
+fn test_spawn_with_map_result() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn (lambda () {:name "Alice" :age 30})))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::Map(map) => {
+            match map.get("name") {
+                Some(value::Value::String(s)) if s == "Alice" => {}
+                _ => panic!("Expected name to be Alice"),
+            }
+            match map.get("age") {
+                Some(value::Value::Number(n)) if *n == 30.0 => {}
+                _ => panic!("Expected age to be 30"),
+            }
+        }
+        _ => panic!("Expected map value"),
+    }
+}
+
+#[test]
+fn test_spawn_captures_environment() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define x 100)
+            (define result-ch (spawn (lambda () (* x 2))))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Number(n) if n == 200.0));
+}
+
+#[test]
+fn test_spawn_errors() {
+    let env = setup();
+
+    // spawn requires 1 argument
+    let result = eval_expr("(spawn)", env.clone());
+    assert!(result.is_err());
+
+    // spawn requires a lambda
+    let result = eval_expr("(spawn 42)", env.clone());
+    assert!(result.is_err());
+
+    // spawn requires zero-parameter lambda
+    let code = r#"(spawn (lambda (x) (* x 2)))"#;
+    let result = eval_expr(code, env.clone());
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_spawn_handles_errors_in_thread() {
+    let env = setup();
+
+    // Error in spawned thread should be sent as Error value
+    let code = r#"
+        (begin
+            (define result-ch (spawn (lambda () (/ 1 0))))
+            (define result (channel-recv result-ch))
+            (error? result))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Bool(true)));
+}
