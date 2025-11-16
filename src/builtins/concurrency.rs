@@ -339,3 +339,123 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
         )),
     }
 }
+
+#[builtin(
+    name = "spawn-link",
+    signature = "(spawn-link function)",
+    description = "Spawn a supervised goroutine with structured error handling.
+
+**Parameters:**
+- function: A lambda with zero parameters to execute in a new thread
+
+**Returns:** A channel that receives a result map with either `:ok` or `:error`
+
+**Examples:**
+```lisp
+;; Successful execution
+(define result-ch (spawn-link (lambda () (+ 1 2 3))))
+(define result (channel-recv result-ch))
+;; result = {:ok 6}
+
+;; Error handling
+(define result-ch (spawn-link (lambda () (/ 1 0))))
+(define result (channel-recv result-ch))
+(if (map-get result :error)
+  (println \"Error:\" (map-get result :error))
+  (println \"Success:\" (map-get result :ok)))
+
+;; Using with http-request for robust error handling
+(define result-ch (spawn-link (lambda ()
+  (http-request \"https://api.example.com/data\" {}))))
+(define result (channel-recv result-ch))
+(if (map-get result :error)
+  {:status \"failed\" :reason (map-get result :error)}
+  {:status \"success\" :data (map-get result :ok)})
+```
+
+**Notes:**
+- Returns `{:ok value}` on success
+- Returns `{:error \"error message\"}` on failure
+- Errors never crash the parent thread
+- More structured than spawn for error handling
+- Ideal for unreliable operations (network, I/O, external services)
+- Use with map-get to check :error or :ok keys",
+    category = "Concurrency",
+    related = ["spawn", "make-channel", "channel-recv", "map-get"]
+)]
+fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::Custom(
+            "spawn-link: expected 1 argument".to_string(),
+        ));
+    }
+
+    match &args[0] {
+        Value::Lambda {
+            params,
+            body,
+            env: lambda_env,
+            docstring: _,
+        } => {
+            // Verify zero-parameter lambda
+            if !params.is_empty() {
+                return Err(EvalError::Custom(
+                    "spawn-link: function must take zero parameters".to_string(),
+                ));
+            }
+
+            // Create result channel
+            let (sender, receiver) = unbounded();
+            let result_channel = Value::Channel {
+                sender: Arc::new(sender.clone()),
+                receiver: Arc::new(receiver),
+            };
+
+            // Clone what we need for the thread
+            let body_clone = body.clone();
+            let env_clone = Arc::clone(lambda_env);
+
+            // Get the global environment from the parent thread
+            let global_env = crate::eval::get_global_env();
+
+            // Spawn the thread
+            std::thread::spawn(move || {
+                // Initialize GLOBAL_ENV in this thread with the parent's global env
+                if let Some(global) = global_env {
+                    crate::eval::set_global_env(global);
+                }
+
+                // Create a new macro registry for this thread
+                let mut macro_reg = crate::macros::MacroRegistry::new();
+
+                // Evaluate the lambda body
+                let result = crate::eval::eval_with_macros(*body_clone, env_clone, &mut macro_reg);
+
+                // Create result map
+                use std::collections::HashMap;
+                let value_to_send = match result {
+                    Ok(val) => {
+                        // Success: {:ok value}
+                        let mut map = HashMap::new();
+                        map.insert("ok".to_string(), val);
+                        Value::Map(map)
+                    }
+                    Err(e) => {
+                        // Error: {:error "message"}
+                        let mut map = HashMap::new();
+                        map.insert("error".to_string(), Value::String(format!("{:?}", e)));
+                        Value::Map(map)
+                    }
+                };
+
+                // Send the result (ignore send errors - receiver might have been dropped)
+                let _ = sender.send(value_to_send);
+            });
+
+            Ok(result_channel)
+        }
+        _ => Err(EvalError::Custom(
+            "spawn-link: argument must be a lambda".to_string(),
+        )),
+    }
+}

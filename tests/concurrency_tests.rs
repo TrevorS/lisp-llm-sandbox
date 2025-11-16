@@ -427,3 +427,159 @@ fn test_spawn_handles_errors_in_thread() {
     let result = eval_expr(code, env).unwrap();
     assert!(matches!(result, value::Value::Bool(true)));
 }
+
+// ============================================================================
+// spawn-link tests
+// ============================================================================
+
+#[test]
+fn test_spawn_link_success() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () (+ 1 2 3))))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::Map(map) => {
+            assert!(map.contains_key("ok"));
+            match map.get("ok") {
+                Some(value::Value::Number(n)) if *n == 6.0 => {}
+                _ => panic!("Expected ok value to be 6"),
+            }
+        }
+        _ => panic!("Expected map result"),
+    }
+}
+
+#[test]
+fn test_spawn_link_error() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () (/ 1 0))))
+            (channel-recv result-ch))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::Map(map) => {
+            assert!(map.contains_key("error"));
+            match map.get("error") {
+                Some(value::Value::String(s)) => {
+                    // Error message format: Custom("Division by zero")
+                    assert!(s.contains("Division"));
+                }
+                _ => panic!("Expected error to be a string"),
+            }
+        }
+        _ => panic!("Expected map result"),
+    }
+}
+
+#[test]
+fn test_spawn_link_with_map_get() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () (* 10 10))))
+            (define result (channel-recv result-ch))
+            (map-get result :ok))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::Number(n) if n == 100.0));
+}
+
+#[test]
+fn test_spawn_link_error_checking() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () (+ 5 5))))
+            (define result (channel-recv result-ch))
+            (if (map-get result :error)
+                "had-error"
+                "no-error"))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::String(s) if s == "no-error"));
+}
+
+#[test]
+fn test_spawn_link_with_string_result() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () "success")))
+            (define result (channel-recv result-ch))
+            (map-get result :ok))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    assert!(matches!(result, value::Value::String(s) if s == "success"));
+}
+
+#[test]
+fn test_spawn_link_with_list_result() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define result-ch (spawn-link (lambda () (list 1 2 3))))
+            (define result (channel-recv result-ch))
+            (map-get result :ok))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::List(items) => {
+            assert_eq!(items.len(), 3);
+            assert!(matches!(items[0], value::Value::Number(n) if n == 1.0));
+        }
+        _ => panic!("Expected list"),
+    }
+}
+
+#[test]
+fn test_spawn_link_multiple_tasks() {
+    let env = setup();
+
+    let code = r#"
+        (begin
+            (define ch1 (spawn-link (lambda () (* 10 10))))
+            (define ch2 (spawn-link (lambda () (+ 5 5))))
+            (define r1 (channel-recv ch1))
+            (define r2 (channel-recv ch2))
+            (list (map-get r1 :ok) (map-get r2 :ok)))
+    "#;
+    let result = eval_expr(code, env).unwrap();
+    match result {
+        value::Value::List(items) => {
+            assert_eq!(items.len(), 2);
+            assert!(matches!(items[0], value::Value::Number(n) if n == 100.0));
+            assert!(matches!(items[1], value::Value::Number(n) if n == 10.0));
+        }
+        _ => panic!("Expected list"),
+    }
+}
+
+#[test]
+fn test_spawn_link_errors() {
+    let env = setup();
+
+    // spawn-link requires 1 argument
+    let result = eval_expr("(spawn-link)", env.clone());
+    assert!(result.is_err());
+
+    // spawn-link requires a lambda
+    let result = eval_expr("(spawn-link 42)", env.clone());
+    assert!(result.is_err());
+
+    // spawn-link requires zero-parameter lambda
+    let code = r#"(spawn-link (lambda (x) (* x 2)))"#;
+    let result = eval_expr(code, env.clone());
+    assert!(result.is_err());
+}
