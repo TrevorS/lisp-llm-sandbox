@@ -11,7 +11,7 @@
 use crate::env::Environment;
 use crate::error::{EvalError, ARITY_ONE, ARITY_ZERO_OR_ONE};
 use crate::value::Value;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Show help information
 pub fn builtin_help(args: &[Value]) -> Result<Value, EvalError> {
@@ -70,9 +70,9 @@ pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
 }
 
 /// Register all help system builtins in the environment
-pub fn register(env: &Rc<Environment>) {
-    env.define("help".to_string(), Value::BuiltIn(builtin_help));
-    env.define("doc".to_string(), Value::BuiltIn(builtin_doc));
+pub fn register(env: &Arc<Environment>) {
+    crate::eval::extend_global_env("help".to_string(), Value::BuiltIn(builtin_help));
+    crate::eval::extend_global_env("doc".to_string(), Value::BuiltIn(builtin_doc));
 
     // Register help entries
     crate::help::register_help(crate::help::HelpEntry {
