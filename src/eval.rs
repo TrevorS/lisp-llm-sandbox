@@ -21,6 +21,7 @@ pub fn set_global_env(env: Arc<Environment>) {
 }
 
 /// Get the current global environment
+#[allow(dead_code)]
 pub fn get_global_env() -> Option<Arc<Environment>> {
     GLOBAL_ENV.with(|global| global.read().unwrap().clone())
 }
@@ -244,6 +245,15 @@ fn eval_define(
     if args.len() < 2 {
         return Err(EvalError::arity_error("define", "at least 2", args.len()));
     }
+
+    // Initialize global environment if not set (for tests)
+    GLOBAL_ENV.with(|global| {
+        let guard = global.read().unwrap();
+        if guard.is_none() {
+            drop(guard);
+            set_global_env(env.clone());
+        }
+    });
 
     match &args[0] {
         // Variable definition: (define x 42)
@@ -795,7 +805,7 @@ mod tests {
     #[test]
     fn test_eval_symbol_lookup() {
         let env = Environment::new();
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         let result = eval(Value::Symbol("x".to_string()), env).unwrap();
         match result {
@@ -844,8 +854,9 @@ mod tests {
             _ => panic!("Expected Symbol(\"x\")"),
         }
 
-        // Check that x is now defined
-        match env.get("x") {
+        // Check that x is now defined in the global environment
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 42.0),
             _ => panic!("Expected x to be defined as Number(42.0)"),
         }
@@ -910,7 +921,7 @@ mod tests {
     #[test]
     fn test_shadowing_in_eval() {
         let parent = Environment::new();
-        parent.define("x".to_string(), Value::Number(10.0));
+        let parent = parent.extend("x".to_string(), Value::Number(10.0));
 
         let child = Environment::with_parent(parent);
 
@@ -1432,7 +1443,7 @@ mod tests {
         crate::builtins::register_builtins(env.clone());
 
         // Define x globally
-        env.define("x".to_string(), Value::Number(100.0));
+        let env = env.extend("x".to_string(), Value::Number(100.0));
 
         // (let ((x 10)) x) - should shadow global x
         let expr = Value::List(vec![
@@ -1733,7 +1744,7 @@ mod tests {
         let mut macro_reg = MacroRegistry::new();
 
         // Define x
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         // `(1 ,x 3) should return (1 42 3)
         let expr = Value::List(vec![
@@ -1935,7 +1946,7 @@ mod tests {
         let env = Environment::new();
         let mut macro_reg = MacroRegistry::new();
 
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         // ``(1 ,x) should return `(1 ,x)
         let expr = Value::List(vec![

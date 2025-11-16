@@ -1,10 +1,10 @@
 // ABOUTME: Comprehensive integration tests verifying all features work together
 
 use lisp_llm_sandbox::*;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Set up environment with builtins and stdlib loaded
-fn setup() -> (Rc<env::Environment>, macros::MacroRegistry) {
+fn setup() -> (Arc<env::Environment>, macros::MacroRegistry) {
     let env = env::Environment::new();
     let mut macro_reg = macros::MacroRegistry::new();
     builtins::register_builtins(env.clone());
@@ -26,7 +26,7 @@ fn setup() -> (Rc<env::Environment>, macros::MacroRegistry) {
 /// Load stdlib code into environment
 fn load_stdlib(
     code: &str,
-    env: Rc<env::Environment>,
+    env: Arc<env::Environment>,
     macro_reg: &mut macros::MacroRegistry,
 ) -> Result<(), String> {
     let mut remaining = code.trim();
@@ -128,7 +128,7 @@ fn find_expr_end(input: &str) -> Result<usize, String> {
 
 fn eval_code(
     code: &str,
-    env: Rc<env::Environment>,
+    env: Arc<env::Environment>,
     macro_reg: &mut macros::MacroRegistry,
 ) -> Result<value::Value, String> {
     let expr = parser::parse(code).map_err(|e| format!("Parse error: {}", e))?;

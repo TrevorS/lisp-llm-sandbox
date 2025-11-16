@@ -5,16 +5,16 @@ use lisp_llm_sandbox::error::EvalError;
 use lisp_llm_sandbox::eval::eval;
 use lisp_llm_sandbox::parser::parse;
 use lisp_llm_sandbox::value::Value;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Helper to parse and evaluate an expression
-fn eval_expr(expr: &str, env: &Rc<Environment>) -> Result<Value, EvalError> {
-    let parsed = parse(expr).map_err(|e| EvalError::runtime_error("eval_expr", e.to_string()))?;
+fn eval_expr(expr: &str, env: &Arc<Environment>) -> Result<Value, EvalError> {
+    let parsed = parse(expr).map_err(|e| EvalError::Custom(e.to_string()))?;
     eval(parsed, env.clone())
 }
 
 /// Helper to get a test environment with builtins
-fn test_env() -> Rc<Environment> {
+fn test_env() -> Arc<Environment> {
     let env = Environment::new();
     lisp_llm_sandbox::builtins::register_builtins(env.clone());
     env

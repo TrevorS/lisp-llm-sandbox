@@ -70,7 +70,7 @@ pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
 }
 
 /// Register all help system builtins in the environment
-pub fn register(env: &Arc<Environment>) {
+pub fn register(_env: &Arc<Environment>) {
     crate::eval::extend_global_env("help".to_string(), Value::BuiltIn(builtin_help));
     crate::eval::extend_global_env("doc".to_string(), Value::BuiltIn(builtin_doc));
 

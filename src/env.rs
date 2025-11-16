@@ -50,7 +50,8 @@ impl Environment {
     /// WARNING: This creates a new environment but doesn't return it!
     /// Prefer extend() for new code
     #[deprecated(note = "Use extend() instead for thread-safe immutable environments")]
-    pub fn define(&self, name: String, value: Value) {
+    #[allow(dead_code)]
+    pub fn define(&self, _name: String, _value: Value) {
         // This is a shim for backward compatibility during migration
         // It can't actually mutate the environment since it's immutable
         // Callers need to be updated to use extend() and capture the result
