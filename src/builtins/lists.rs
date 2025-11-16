@@ -9,7 +9,7 @@
 //! - `length`: Get number of elements in list
 //! - `empty?`: Test if list is empty
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_TWO};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -31,7 +31,7 @@ use lisp_macros::builtin;
 /// car, cdr, list
 pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("cons", ARITY_TWO, args.len()));
     }
 
     let mut result = vec![args[0].clone()];
@@ -39,7 +39,7 @@ pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
     match &args[1] {
         Value::List(items) => result.extend(items.clone()),
         Value::Nil => (),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("cons", "list", &args[1], 2)),
     }
 
     Ok(Value::List(result))
@@ -62,13 +62,13 @@ pub fn builtin_cons(args: &[Value]) -> Result<Value, EvalError> {
 /// cdr, cons
 pub fn builtin_car(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("car", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
         Value::List(items) if !items.is_empty() => Ok(items[0].clone()),
-        Value::List(_) => Err(EvalError::Custom("car of empty list".to_string())),
-        _ => Err(EvalError::TypeError),
+        Value::List(_) => Err(EvalError::runtime_error("car", "empty list")),
+        _ => Err(EvalError::type_error("car", "list", &args[0], 1)),
     }
 }
 
@@ -90,7 +90,7 @@ pub fn builtin_car(args: &[Value]) -> Result<Value, EvalError> {
 /// car, cons
 pub fn builtin_cdr(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("cdr", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
@@ -101,8 +101,8 @@ pub fn builtin_cdr(args: &[Value]) -> Result<Value, EvalError> {
                 Ok(Value::List(items[1..].to_vec()))
             }
         }
-        Value::List(_) => Err(EvalError::Custom("cdr of empty list".to_string())),
-        _ => Err(EvalError::TypeError),
+        Value::List(_) => Err(EvalError::runtime_error("cdr", "empty list")),
+        _ => Err(EvalError::type_error("cdr", "list", &args[0], 1)),
     }
 }
 
@@ -140,13 +140,13 @@ pub fn builtin_list(args: &[Value]) -> Result<Value, EvalError> {
 /// empty?, list
 pub fn builtin_length(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("length", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
         Value::List(items) => Ok(Value::Number(items.len() as f64)),
         Value::Nil => Ok(Value::Number(0.0)),
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::type_error("length", "list", &args[0], 1)),
     }
 }
 
@@ -168,12 +168,12 @@ pub fn builtin_length(args: &[Value]) -> Result<Value, EvalError> {
 /// length, nil?
 pub fn builtin_empty_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("empty?", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
         Value::List(items) => Ok(Value::Bool(items.is_empty())),
         Value::Nil => Ok(Value::Bool(true)),
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::type_error("empty?", "list", &args[0], 1)),
     }
 }

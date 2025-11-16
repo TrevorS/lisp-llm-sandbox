@@ -13,7 +13,7 @@
 //!
 //! All return boolean (#t or #f)
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -33,7 +33,7 @@ use lisp_macros::builtin;
 /// string?, symbol?, list?
 pub fn builtin_number_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("number?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Number(_))))
@@ -55,7 +55,7 @@ pub fn builtin_number_p(args: &[Value]) -> Result<Value, EvalError> {
 /// number?, symbol?
 pub fn builtin_string_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("string?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::String(_))))
@@ -77,7 +77,7 @@ pub fn builtin_string_p(args: &[Value]) -> Result<Value, EvalError> {
 /// number?, string?, nil?
 pub fn builtin_list_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("list?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::List(_))))
@@ -99,7 +99,7 @@ pub fn builtin_list_p(args: &[Value]) -> Result<Value, EvalError> {
 /// empty?, list?
 pub fn builtin_nil_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("nil?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Nil)))
@@ -120,7 +120,7 @@ pub fn builtin_nil_p(args: &[Value]) -> Result<Value, EvalError> {
 /// string?, number?
 pub fn builtin_symbol_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("symbol?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Symbol(_))))
@@ -142,7 +142,7 @@ pub fn builtin_symbol_p(args: &[Value]) -> Result<Value, EvalError> {
 /// number?, string?
 pub fn builtin_bool_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("bool?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Bool(_))))
@@ -165,7 +165,7 @@ pub fn builtin_bool_p(args: &[Value]) -> Result<Value, EvalError> {
 /// list?, keyword?
 pub fn builtin_map_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Map(_))))
@@ -188,7 +188,7 @@ pub fn builtin_map_p(args: &[Value]) -> Result<Value, EvalError> {
 /// symbol?, map?
 pub fn builtin_keyword_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("keyword?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Keyword(_))))

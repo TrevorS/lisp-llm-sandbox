@@ -8,7 +8,7 @@
 //!
 //! All functions return boolean (#t or #f)
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -28,11 +28,11 @@ use lisp_macros::builtin;
 ///
 /// or, not
 pub fn builtin_and(args: &[Value]) -> Result<Value, EvalError> {
-    for arg in args {
+    for (i, arg) in args.iter().enumerate() {
         match arg {
             Value::Bool(false) => return Ok(Value::Bool(false)),
             Value::Bool(true) => continue,
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("and", "bool", arg, i + 1)),
         }
     }
     Ok(Value::Bool(true))
@@ -54,11 +54,11 @@ pub fn builtin_and(args: &[Value]) -> Result<Value, EvalError> {
 ///
 /// and, not
 pub fn builtin_or(args: &[Value]) -> Result<Value, EvalError> {
-    for arg in args {
+    for (i, arg) in args.iter().enumerate() {
         match arg {
             Value::Bool(true) => return Ok(Value::Bool(true)),
             Value::Bool(false) => continue,
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("or", "bool", arg, i + 1)),
         }
     }
     Ok(Value::Bool(false))
@@ -80,11 +80,11 @@ pub fn builtin_or(args: &[Value]) -> Result<Value, EvalError> {
 /// and, or
 pub fn builtin_not(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("not", ARITY_ONE, args.len()));
     }
 
     match args[0] {
         Value::Bool(b) => Ok(Value::Bool(!b)),
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::type_error("not", "bool", &args[0], 1)),
     }
 }

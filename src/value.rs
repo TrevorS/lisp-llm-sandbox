@@ -77,6 +77,26 @@ impl fmt::Display for Value {
     }
 }
 
+impl Value {
+    /// Get user-friendly type name for error messages
+    pub fn type_name(&self) -> String {
+        match self {
+            Value::Number(_) => "number".to_string(),
+            Value::String(_) => "string".to_string(),
+            Value::Symbol(_) => "symbol".to_string(),
+            Value::Keyword(_) => "keyword".to_string(),
+            Value::Bool(_) => "boolean".to_string(),
+            Value::List(_) => "list".to_string(),
+            Value::Map(_) => "map".to_string(),
+            Value::Lambda { .. } => "function".to_string(),
+            Value::Macro { .. } => "macro".to_string(),
+            Value::BuiltIn(_) => "builtin function".to_string(),
+            Value::Error(_) => "error".to_string(),
+            Value::Nil => "nil".to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

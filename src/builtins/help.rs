@@ -9,7 +9,7 @@
 //! User-defined functions can include docstrings as the first element of the body.
 
 use crate::env::Environment;
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_ZERO_OR_ONE};
 use crate::value::Value;
 use std::rc::Rc;
 
@@ -38,19 +38,26 @@ pub fn builtin_help(args: &[Value]) -> Result<Value, EvalError> {
                     // If not found in help registry, it might be a user function
                     // User functions would need to be looked up in environment
                     // For now, just report not found
-                    Err(EvalError::Custom(format!("No help found for '{}'", name)))
+                    Err(EvalError::runtime_error(
+                        "help",
+                        format!("no help found for '{}'", name),
+                    ))
                 }
-                _ => Err(EvalError::TypeError),
+                _ => Err(EvalError::type_error("help", "symbol", &args[0], 1)),
             }
         }
-        _ => Err(EvalError::ArityMismatch),
+        _ => Err(EvalError::arity_error(
+            "help",
+            ARITY_ZERO_OR_ONE,
+            args.len(),
+        )),
     }
 }
 
 /// Returns the docstring of a function as a string
 pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("doc", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
@@ -58,7 +65,7 @@ pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
             Some(doc) => Ok(Value::String(doc.clone())),
             None => Ok(Value::Nil),
         },
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::type_error("doc", "lambda", &args[0], 1)),
     }
 }
 

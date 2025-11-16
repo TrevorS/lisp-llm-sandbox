@@ -8,7 +8,7 @@
 //! - `/`: Divide first by subsequent args, or reciprocal if single arg
 //! - `%`: Remainder operation (modulo) - exactly 2 args required
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_AT_LEAST_ONE, ARITY_TWO};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -28,10 +28,10 @@ use lisp_macros::builtin;
 /// -, *, /
 pub fn builtin_add(args: &[Value]) -> Result<Value, EvalError> {
     let mut sum = 0.0;
-    for arg in args {
+    for (i, arg) in args.iter().enumerate() {
         match arg {
             Value::Number(n) => sum += n,
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("+", "number", arg, i + 1)),
         }
     }
     Ok(Value::Number(sum))
@@ -54,12 +54,12 @@ pub fn builtin_add(args: &[Value]) -> Result<Value, EvalError> {
 /// +, *, /
 pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("-", ARITY_AT_LEAST_ONE, 0));
     }
 
-    let first = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+    let first = match &args[0] {
+        Value::Number(n) => *n,
+        _ => return Err(EvalError::type_error("-", "number", &args[0], 1)),
     };
 
     if args.len() == 1 {
@@ -67,10 +67,10 @@ pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
     }
 
     let mut result = first;
-    for arg in &args[1..] {
+    for (i, arg) in args[1..].iter().enumerate() {
         match arg {
             Value::Number(n) => result -= n,
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("-", "number", arg, i + 2)),
         }
     }
     Ok(Value::Number(result))
@@ -92,10 +92,10 @@ pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
 /// +, -, /
 pub fn builtin_mul(args: &[Value]) -> Result<Value, EvalError> {
     let mut product = 1.0;
-    for arg in args {
+    for (i, arg) in args.iter().enumerate() {
         match arg {
             Value::Number(n) => product *= n,
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("*", "number", arg, i + 1)),
         }
     }
     Ok(Value::Number(product))
@@ -118,31 +118,31 @@ pub fn builtin_mul(args: &[Value]) -> Result<Value, EvalError> {
 /// +, -, *, %
 pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("/", ARITY_AT_LEAST_ONE, 0));
     }
 
-    let first = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+    let first = match &args[0] {
+        Value::Number(n) => *n,
+        _ => return Err(EvalError::type_error("/", "number", &args[0], 1)),
     };
 
     if args.len() == 1 {
         if first == 0.0 {
-            return Err(EvalError::Custom("Division by zero".to_string()));
+            return Err(EvalError::runtime_error("/", "division by zero"));
         }
         return Ok(Value::Number(1.0 / first));
     }
 
     let mut result = first;
-    for arg in &args[1..] {
+    for (i, arg) in args[1..].iter().enumerate() {
         match arg {
             Value::Number(n) => {
                 if *n == 0.0 {
-                    return Err(EvalError::Custom("Division by zero".to_string()));
+                    return Err(EvalError::runtime_error("/", "division by zero"));
                 }
                 result /= n;
             }
-            _ => return Err(EvalError::TypeError),
+            _ => return Err(EvalError::type_error("/", "number", arg, i + 2)),
         }
     }
     Ok(Value::Number(result))
@@ -163,22 +163,22 @@ pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
 /// /
 pub fn builtin_mod(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("%", ARITY_TWO, args.len()));
     }
 
-    let a = match args[0] {
-        Value::Number(n) => n,
-        _ => return Err(EvalError::TypeError),
+    let a = match &args[0] {
+        Value::Number(n) => *n,
+        _ => return Err(EvalError::type_error("%", "number", &args[0], 1)),
     };
 
-    let b = match args[1] {
+    let b = match &args[1] {
         Value::Number(n) => {
-            if n == 0.0 {
-                return Err(EvalError::Custom("Division by zero".to_string()));
+            if *n == 0.0 {
+                return Err(EvalError::runtime_error("%", "division by zero"));
             }
-            n
+            *n
         }
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("%", "number", &args[1], 2)),
     };
 
     Ok(Value::Number(a % b))

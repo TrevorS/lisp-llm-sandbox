@@ -150,7 +150,8 @@ fn parse_number(input: &str) -> IResult<&str, Value> {
         )),
     ))
     .map(|num_str: &str| {
-        let num: f64 = num_str.parse().expect("Failed to parse number");
+        // Parse should never fail since we validated with regex, but handle gracefully
+        let num: f64 = num_str.parse().unwrap_or(0.0);
         Value::Number(num)
     })
     .parse(input)
@@ -425,7 +426,7 @@ pub fn parse(input: &str) -> Result<Value, String> {
                 Ok(value)
             }
         }
-        Err(e) => Err(format!("Parse error: {:?}", e)),
+        Err(e) => Err(format!("Parse error: {}", e)),
     }
 }
 

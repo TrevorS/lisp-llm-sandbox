@@ -55,7 +55,11 @@ impl Tool for SimpleTool {
         // Validate arity if specified
         if let Some(expected_arity) = self.arity {
             if args.len() != expected_arity {
-                return Err(EvalError::ArityMismatch);
+                return Err(EvalError::arity_error(
+                    &self.name,
+                    expected_arity.to_string(),
+                    args.len(),
+                ));
             }
         }
         (self.func)(args)
@@ -80,10 +84,10 @@ mod tests {
 
     fn test_add(args: &[Value]) -> Result<Value, EvalError> {
         let mut sum = 0.0;
-        for arg in args {
+        for (i, arg) in args.iter().enumerate() {
             match arg {
                 Value::Number(n) => sum += n,
-                _ => return Err(EvalError::TypeError),
+                _ => return Err(EvalError::type_error("add", "number", arg, i + 1)),
             }
         }
         Ok(Value::Number(sum))
@@ -125,6 +129,6 @@ mod tests {
 
         // Wrong arity should fail
         let result = tool.call(&[Value::Number(1.0), Value::Number(2.0)]);
-        assert!(matches!(result, Err(EvalError::ArityMismatch)));
+        assert!(matches!(result, Err(EvalError::ArityError { .. })));
     }
 }

@@ -8,7 +8,7 @@
 //!
 //! Errors are first-class values, not exceptions, enabling graceful error handling
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -26,7 +26,7 @@ use lisp_macros::builtin;
 /// error?, error-msg
 pub fn builtin_error(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("error", ARITY_ONE, args.len()));
     }
 
     let msg = match &args[0] {
@@ -51,7 +51,7 @@ pub fn builtin_error(args: &[Value]) -> Result<Value, EvalError> {
 /// error, error-msg
 pub fn builtin_error_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("error?", ARITY_ONE, args.len()));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Error(_))))
@@ -71,11 +71,11 @@ pub fn builtin_error_p(args: &[Value]) -> Result<Value, EvalError> {
 /// error, error?
 pub fn builtin_error_msg(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("error-msg", ARITY_ONE, args.len()));
     }
 
     match &args[0] {
         Value::Error(msg) => Ok(Value::String(msg.clone())),
-        _ => Err(EvalError::TypeError),
+        _ => Err(EvalError::type_error("error-msg", "error", &args[0], 1)),
     }
 }

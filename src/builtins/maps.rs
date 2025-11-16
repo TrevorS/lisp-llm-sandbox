@@ -2,7 +2,9 @@
 //!
 //! Functions for working with key-value maps
 
-use crate::error::EvalError;
+use crate::error::{
+    EvalError, ARITY_ONE, ARITY_THREE, ARITY_TWO, ARITY_TWO_OR_THREE, ARITY_ZERO_OR_ONE,
+};
 use crate::value::Value;
 use lisp_macros::builtin;
 use std::collections::HashMap;
@@ -21,7 +23,11 @@ use std::collections::HashMap;
 /// map-set, map-get
 pub fn map_new(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error(
+            "map-new",
+            ARITY_ZERO_OR_ONE,
+            args.len(),
+        ));
     }
     Ok(Value::Map(HashMap::new()))
 }
@@ -41,17 +47,21 @@ pub fn map_new(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set, map-has?
 pub fn map_get(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error(
+            "map-get",
+            ARITY_TWO_OR_THREE,
+            args.len(),
+        ));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-get", "map", &args[0], 1)),
     };
 
     let key = match &args[1] {
         Value::Keyword(k) => k,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-get", "keyword", &args[1], 2)),
     };
 
     let default = if args.len() == 3 {
@@ -78,17 +88,17 @@ pub fn map_get(args: &[Value]) -> Result<Value, EvalError> {
 /// map-get, map-remove
 pub fn map_set(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 3 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-set", ARITY_THREE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m.clone(),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-set", "map", &args[0], 1)),
     };
 
     let key = match &args[1] {
         Value::Keyword(k) => k.clone(),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-set", "keyword", &args[1], 2)),
     };
 
     let value = args[2].clone();
@@ -113,17 +123,17 @@ pub fn map_set(args: &[Value]) -> Result<Value, EvalError> {
 /// map-get, map-keys
 pub fn map_has_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-has?", ARITY_TWO, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-has?", "map", &args[0], 1)),
     };
 
     let key = match &args[1] {
         Value::Keyword(k) => k,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-has?", "keyword", &args[1], 2)),
     };
 
     Ok(Value::Bool(map.contains_key(key)))
@@ -144,12 +154,12 @@ pub fn map_has_q(args: &[Value]) -> Result<Value, EvalError> {
 /// map-values, map-entries
 pub fn map_keys(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-keys", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-keys", "map", &args[0], 1)),
     };
 
     let mut keys: Vec<_> = map.keys().map(|k| Value::Keyword(k.clone())).collect();
@@ -176,12 +186,12 @@ pub fn map_keys(args: &[Value]) -> Result<Value, EvalError> {
 /// map-keys, map-entries
 pub fn map_values(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-values", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-values", "map", &args[0], 1)),
     };
 
     // Sort by keys for consistent ordering
@@ -207,12 +217,12 @@ pub fn map_values(args: &[Value]) -> Result<Value, EvalError> {
 /// map-keys, map-values
 pub fn map_entries(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-entries", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-entries", "map", &args[0], 1)),
     };
 
     let mut entries: Vec<_> = map
@@ -246,17 +256,17 @@ pub fn map_entries(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set
 pub fn map_merge(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-merge", ARITY_TWO, args.len()));
     }
 
     let map1 = match &args[0] {
         Value::Map(m) => m.clone(),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-merge", "map", &args[0], 1)),
     };
 
     let map2 = match &args[1] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-merge", "map", &args[1], 2)),
     };
 
     let mut result = map1;
@@ -281,17 +291,17 @@ pub fn map_merge(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set, map-has?
 pub fn map_remove(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-remove", ARITY_TWO, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m.clone(),
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-remove", "map", &args[0], 1)),
     };
 
     let key = match &args[1] {
         Value::Keyword(k) => k,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-remove", "keyword", &args[1], 2)),
     };
 
     let mut new_map = map;
@@ -314,12 +324,12 @@ pub fn map_remove(args: &[Value]) -> Result<Value, EvalError> {
 /// map-size
 pub fn map_empty_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-empty?", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-empty?", "map", &args[0], 1)),
     };
 
     Ok(Value::Bool(map.is_empty()))
@@ -340,12 +350,12 @@ pub fn map_empty_q(args: &[Value]) -> Result<Value, EvalError> {
 /// map-empty?
 pub fn map_size(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::ArityMismatch);
+        return Err(EvalError::arity_error("map-size", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
         Value::Map(m) => m,
-        _ => return Err(EvalError::TypeError),
+        _ => return Err(EvalError::type_error("map-size", "map", &args[0], 1)),
     };
 
     Ok(Value::Number(map.len() as f64))

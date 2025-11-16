@@ -140,6 +140,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     rl.set_helper(Some(helper));
 
     // Try to load history from previous sessions
+    // Intentionally ignore errors - history file may not exist on first run
     let history_file = ".lisp_history";
     let _ = rl.load_history(history_file);
 
@@ -182,12 +183,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("=> {}", LispHelper::highlight_output(&result));
                             }
                             Err(e) => {
-                                eprintln!("Error: {}", e);
+                                // Don't add prefix - error already formats itself
+                                eprintln!("{}", e);
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Parse error: {}", e);
+                        // Don't add prefix - parser already adds "Parse error:"
+                        eprintln!("{}", e);
                     }
                 }
             }
@@ -209,6 +212,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Save history on exit
+    // Intentionally ignore errors - non-critical operation, don't break REPL exit
     let _ = rl.save_history(history_file);
 
     Ok(())
@@ -314,7 +318,7 @@ fn load_stdlib(
                         remaining = rest;
                     }
                     Err(e) => {
-                        return Err(format!("Eval error: {:?}", e));
+                        return Err(format!("Eval error: {}", e));
                     }
                 }
             }
