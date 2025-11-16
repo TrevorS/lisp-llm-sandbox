@@ -61,17 +61,11 @@ fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
                         receiver: Arc::new(receiver),
                     })
                 }
-                Value::Number(_) => Err(EvalError::Custom(
-                    "make-channel: capacity must be a non-negative integer".to_string(),
-                )),
-                _ => Err(EvalError::Custom(
-                    "make-channel: capacity must be a number".to_string(),
-                )),
+                Value::Number(_) => Err(EvalError::runtime_error("make-channel", "capacity must be a non-negative integer")),
+                _ => Err(EvalError::runtime_error("make-channel", "capacity must be a number")),
             }
         }
-        _ => Err(EvalError::Custom(
-            "make-channel: expected 0 or 1 arguments".to_string(),
-        )),
+        _ => Err(EvalError::runtime_error("make-channel", "expected 0 or 1 arguments")),
     }
 }
 
@@ -102,9 +96,7 @@ fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::Custom(
-            "channel-send: expected 2 arguments".to_string(),
-        ));
+        return Err(EvalError::runtime_error("channel-send", "expected 2 arguments"));
     }
 
     match &args[0] {
@@ -112,12 +104,10 @@ fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
             let value = args[1].clone();
             sender
                 .send(value.clone())
-                .map_err(|_| EvalError::Custom("channel-send: channel is closed".to_string()))?;
+                .map_err(|_| EvalError::runtime_error("channel-send", "channel is closed"))?;
             Ok(value)
         }
-        _ => Err(EvalError::Custom(
-            "channel-send: first argument must be a channel".to_string(),
-        )),
+        _ => Err(EvalError::runtime_error("channel-send", "first argument must be a channel")),
     }
 }
 
@@ -147,18 +137,14 @@ fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::Custom(
-            "channel-recv: expected 1 argument".to_string(),
-        ));
+        return Err(EvalError::runtime_error("channel-recv", "expected 1 argument"));
     }
 
     match &args[0] {
         Value::Channel { receiver, .. } => receiver
             .recv()
-            .map_err(|_| EvalError::Custom("channel-recv: channel is closed and empty".to_string())),
-        _ => Err(EvalError::Custom(
-            "channel-recv: argument must be a channel".to_string(),
-        )),
+            .map_err(|_| EvalError::runtime_error("channel-recv", "channel is closed and empty")),
+        _ => Err(EvalError::runtime_error("channel-recv", "argument must be a channel")),
     }
 }
 
@@ -190,9 +176,7 @@ fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::Custom(
-            "channel-close: expected 1 argument".to_string(),
-        ));
+        return Err(EvalError::runtime_error("channel-close", "expected 1 argument"));
     }
 
     match &args[0] {
@@ -203,9 +187,7 @@ fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
             // In practice, channels close when all references are dropped.
             Ok(Value::Nil)
         }
-        _ => Err(EvalError::Custom(
-            "channel-close: argument must be a channel".to_string(),
-        )),
+        _ => Err(EvalError::runtime_error("channel-close", "argument must be a channel")),
     }
 }
 
@@ -230,9 +212,7 @@ fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_p(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::Custom(
-            "channel?: expected 1 argument".to_string(),
-        ));
+        return Err(EvalError::runtime_error("channel?", "expected 1 argument"));
     }
 
     Ok(Value::Bool(matches!(args[0], Value::Channel { .. })))
@@ -276,9 +256,7 @@ fn channel_p(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn spawn(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::Custom(
-            "spawn: expected 1 argument".to_string(),
-        ));
+        return Err(EvalError::runtime_error("spawn", "expected 1 argument"));
     }
 
     match &args[0] {
@@ -290,9 +268,7 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
         } => {
             // Verify zero-parameter lambda
             if !params.is_empty() {
-                return Err(EvalError::Custom(
-                    "spawn: function must take zero parameters".to_string(),
-                ));
+                return Err(EvalError::runtime_error("spawn", "function must take zero parameters"));
             }
 
             // Create result channel
@@ -334,9 +310,7 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
 
             Ok(result_channel)
         }
-        _ => Err(EvalError::Custom(
-            "spawn: argument must be a lambda".to_string(),
-        )),
+        _ => Err(EvalError::runtime_error("spawn", "argument must be a lambda")),
     }
 }
 
@@ -385,9 +359,7 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::Custom(
-            "spawn-link: expected 1 argument".to_string(),
-        ));
+        return Err(EvalError::runtime_error("spawn-link", "expected 1 argument"));
     }
 
     match &args[0] {
@@ -399,9 +371,7 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
         } => {
             // Verify zero-parameter lambda
             if !params.is_empty() {
-                return Err(EvalError::Custom(
-                    "spawn-link: function must take zero parameters".to_string(),
-                ));
+                return Err(EvalError::runtime_error("spawn-link", "function must take zero parameters"));
             }
 
             // Create result channel
@@ -431,13 +401,13 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
                 // Evaluate the lambda body
                 let result = crate::eval::eval_with_macros(*body_clone, env_clone, &mut macro_reg);
 
-                // Create result map
+                // Create result map with keyword keys
                 use std::collections::HashMap;
                 let value_to_send = match result {
                     Ok(val) => {
                         // Success: {:ok value}
                         let mut map = HashMap::new();
-                        map.insert("ok".to_string(), val);
+                        map.insert("ok".to_string(), val);  // Note: Keywords stored as strings internally
                         Value::Map(map)
                     }
                     Err(e) => {
@@ -454,8 +424,6 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
 
             Ok(result_channel)
         }
-        _ => Err(EvalError::Custom(
-            "spawn-link: argument must be a lambda".to_string(),
-        )),
+        _ => Err(EvalError::runtime_error("spawn-link", "argument must be a lambda")),
     }
 }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 /// Helper to parse and evaluate an expression
 fn eval_expr(expr: &str, env: &Arc<Environment>) -> Result<Value, EvalError> {
-    let parsed = parse(expr).map_err(|e| EvalError::Custom(e.to_string()))?;
+    let parsed = parse(expr).map_err(|e| EvalError::runtime_error("parse", e.to_string()))?;
     eval(parsed, env.clone())
 }
 

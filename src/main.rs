@@ -95,13 +95,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Conditionally load standard library modules
     if !args.no_stdlib {
-        // Load stdlib modules in order: core, math, string, test, http
+        // Load stdlib modules in order: core, math, string, test, http, concurrency
         let modules = [
             ("core", include_str!("stdlib/lisp/core.lisp")),
             ("math", include_str!("stdlib/lisp/math.lisp")),
             ("string", include_str!("stdlib/lisp/string.lisp")),
             ("test", include_str!("stdlib/lisp/test.lisp")),
             ("http", include_str!("stdlib/lisp/http.lisp")),
+            ("concurrency", include_str!("stdlib/lisp/concurrency.lisp")),
         ];
 
         // Skip automatic help registration during stdlib loading

@@ -466,12 +466,12 @@ fn eval_letrec(
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::Custom("letrec: expected bindings and body".into()));
+        return Err(EvalError::runtime_error("letrec", "expected bindings and body"));
     }
 
     let bindings = match &args[0] {
         Value::List(items) => items,
-        _ => return Err(EvalError::Custom("letrec: bindings must be a list".into())),
+        _ => return Err(EvalError::runtime_error("letrec", "bindings must be a list")),
     };
 
     // Create new environment as child of current env
@@ -483,15 +483,16 @@ fn eval_letrec(
             Value::List(pair) if pair.len() == 2 => {
                 let name = match &pair[0] {
                     Value::Symbol(s) => s.clone(),
-                    _ => return Err(EvalError::Custom("letrec: binding name must be symbol".into())),
+                    _ => return Err(EvalError::runtime_error("letrec", "binding name must be symbol")),
                 };
                 // KEY DIFFERENCE: evaluate in new_env (not env like in let)
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
                 new_env = new_env.extend(name, value);
             }
             _ => {
-                return Err(EvalError::Custom(
-                    "letrec: binding must be [symbol value]".into(),
+                return Err(EvalError::runtime_error(
+                    "letrec",
+                    "binding must be [symbol value]",
                 ));
             }
         }

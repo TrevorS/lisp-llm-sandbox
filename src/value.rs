@@ -132,6 +132,7 @@ impl Value {
             Value::Lambda { .. } => "function".to_string(),
             Value::Macro { .. } => "macro".to_string(),
             Value::BuiltIn(_) => "builtin function".to_string(),
+            Value::Channel { .. } => "channel".to_string(),
             Value::Error(_) => "error".to_string(),
             Value::Nil => "nil".to_string(),
         }

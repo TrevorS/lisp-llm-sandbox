@@ -10,7 +10,7 @@ fn setup() -> Arc<env::Environment> {
 }
 
 fn eval_expr(code: &str, env: Arc<env::Environment>) -> Result<value::Value, error::EvalError> {
-    let expr = parser::parse(code).map_err(|e| error::EvalError::Custom(e))?;
+    let expr = parser::parse(code).map_err(|e| error::EvalError::runtime_error("parse", e))?;
     let mut macro_reg = macros::MacroRegistry::new();
     eval::eval_with_macros(expr, env, &mut macro_reg)
 }
@@ -469,8 +469,9 @@ fn test_spawn_link_error() {
             assert!(map.contains_key("error"));
             match map.get("error") {
                 Some(value::Value::String(s)) => {
-                    // Error message format: Custom("Division by zero")
-                    assert!(s.contains("Division"));
+                    // Error message format changed to use new error system
+                    eprintln!("Error message: {}", s);
+                    assert!(s.contains("division") || s.contains("Division"));
                 }
                 _ => panic!("Expected error to be a string"),
             }

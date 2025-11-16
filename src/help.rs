@@ -315,20 +315,19 @@ mod tests {
     #[serial_test::serial]
     fn test_user_defined_function_shadows_stdlib_help() {
         use crate::env::Environment;
-        use std::rc::Rc;
 
         // Create an environment and define a user function
-        let env = Rc::new(Environment::new());
+        let env = Environment::new();
         let user_sum = Value::Lambda {
             params: vec!["x".to_string(), "y".to_string()],
             body: Box::new(Value::Symbol("+".to_string())),
-            env: Rc::clone(&env),
+            env: env.clone(),
             docstring: Some("Add two numbers together".to_string()),
         };
-        env.define("sum".to_string(), user_sum);
+        let env = env.extend("sum".to_string(), user_sum);
 
         // Set the current environment for help lookup
-        set_current_env(Some(Rc::clone(&env)));
+        set_current_env(Some(env.clone()));
 
         // Get help should return the user-defined version, not stdlib
         let help = get_help("sum");
