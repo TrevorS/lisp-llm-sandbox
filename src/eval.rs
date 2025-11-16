@@ -179,6 +179,9 @@ pub fn eval_with_macros(
                     Value::Symbol(s) if s == "let" => {
                         return eval_let(&items[1..], current_env, macro_reg);
                     }
+                    Value::Symbol(s) if s == "letrec" => {
+                        return eval_letrec(&items[1..], current_env, macro_reg);
+                    }
                     _ => {
                         // Function application - check if it's a lambda for TCO
                         let func =
@@ -441,6 +444,54 @@ fn eval_let(
                 return Err(EvalError::runtime_error(
                     "let",
                     "binding must be [symbol value]",
+                ));
+            }
+        }
+    }
+
+    // Evaluate body in new environment
+    let mut result = Value::Nil;
+    for expr in &args[1..] {
+        result = eval_with_macros(expr.clone(), new_env.clone(), macro_reg)?;
+    }
+    Ok(result)
+}
+
+/// Evaluate a letrec special form (recursive let)
+/// (letrec ((f (lambda ...))) body)
+/// Unlike `let`, bindings are evaluated in the new environment, allowing recursive references
+fn eval_letrec(
+    args: &[Value],
+    env: Arc<Environment>,
+    macro_reg: &mut MacroRegistry,
+) -> Result<Value, EvalError> {
+    if args.is_empty() {
+        return Err(EvalError::Custom("letrec: expected bindings and body".into()));
+    }
+
+    let bindings = match &args[0] {
+        Value::List(items) => items,
+        _ => return Err(EvalError::Custom("letrec: bindings must be a list".into())),
+    };
+
+    // Create new environment as child of current env
+    let mut new_env = Environment::with_parent(env);
+
+    // Evaluate bindings in the NEW environment (allowing recursion)
+    for binding in bindings {
+        match binding {
+            Value::List(pair) if pair.len() == 2 => {
+                let name = match &pair[0] {
+                    Value::Symbol(s) => s.clone(),
+                    _ => return Err(EvalError::Custom("letrec: binding name must be symbol".into())),
+                };
+                // KEY DIFFERENCE: evaluate in new_env (not env like in let)
+                let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
+                new_env = new_env.extend(name, value);
+            }
+            _ => {
+                return Err(EvalError::Custom(
+                    "letrec: binding must be [symbol value]".into(),
                 ));
             }
         }
