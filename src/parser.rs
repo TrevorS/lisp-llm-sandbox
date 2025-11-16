@@ -195,11 +195,11 @@ fn parse_keyword(input: &str) -> IResult<&str, Value> {
 }
 
 /// Parse a symbol
-/// Starts with letter or special chars: +-*/%<>=!?
-/// Followed by alphanumeric, -, or _
+/// Starts with letter or special chars: +-*/%<>=!?_
+/// Followed by alphanumeric, -, _, or other special chars
 fn parse_symbol(input: &str) -> IResult<&str, Value> {
     let (input, first) =
-        one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/%<>=!?")(input)?;
+        one_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/%<>=!?_")(input)?;
     let (input, rest) = take_while::<_, _, nom::error::Error<_>>(|c: char| {
         c.is_alphanumeric()
             || c == '-'
