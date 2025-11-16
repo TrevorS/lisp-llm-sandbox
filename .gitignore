@@ -17,3 +17,9 @@
 *.swo
 *~
 .DS_Store
+
+# Test data
+/data
+*.db
+*.sqlite
+*.sqlite3
