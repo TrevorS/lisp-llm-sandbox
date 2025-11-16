@@ -17,7 +17,11 @@
 //! The `:handle` field contains a unique connection ID used to look up
 //! the actual database connection in the thread-local registry.
 
-use crate::error::{EvalError, ARITY_ONE, ARITY_TWO_OR_THREE, ERR_SANDBOX_NOT_INIT};
+use crate::error::{
+    EvalError, ARITY_ONE, ARITY_TWO_OR_THREE, ERR_DB_BACKEND_NOT_STRING, ERR_DB_HANDLE_NOT_NUMBER,
+    ERR_DB_MISSING_BACKEND, ERR_DB_MISSING_HANDLE, ERR_DB_MISSING_PATH, ERR_DB_PATH_NOT_STRING,
+    ERR_SANDBOX_NOT_INIT,
+};
 use crate::value::Value;
 use lisp_macros::builtin;
 use rusqlite::{params_from_iter, Connection};
@@ -120,11 +124,11 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
     // Extract backend
     let backend = spec
         .get("backend")
-        .ok_or_else(|| EvalError::runtime_error("db:open", "Connection spec missing :backend key"))?;
+        .ok_or_else(|| EvalError::runtime_error("db:open", ERR_DB_MISSING_BACKEND))?;
 
     let backend_str = match backend {
         Value::String(s) => s.as_str(),
-        _ => return Err(EvalError::runtime_error("db:open", "Backend must be a string")),
+        _ => return Err(EvalError::runtime_error("db:open", ERR_DB_BACKEND_NOT_STRING)),
     };
 
     // Currently only SQLite is supported
@@ -133,13 +137,11 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
             // Extract path
             let path = spec
                 .get("path")
-                .ok_or_else(|| {
-                    EvalError::runtime_error("db:open", "SQLite connection spec missing :path key")
-                })?;
+                .ok_or_else(|| EvalError::runtime_error("db:open", ERR_DB_MISSING_PATH))?;
 
             let path_str = match path {
                 Value::String(s) => s.as_str(),
-                _ => return Err(EvalError::runtime_error("db:open", "Path must be a string")),
+                _ => return Err(EvalError::runtime_error("db:open", ERR_DB_PATH_NOT_STRING)),
             };
 
             // Validate and construct full path through sandbox
@@ -217,11 +219,11 @@ pub fn db_close(args: &[Value]) -> Result<Value, EvalError> {
     // Extract handle
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:close", "Connection map missing :handle key"))?;
+        .ok_or_else(|| EvalError::runtime_error("db:close", ERR_DB_MISSING_HANDLE))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:close", "Handle must be a number")),
+        _ => return Err(EvalError::runtime_error("db:close", ERR_DB_HANDLE_NOT_NUMBER)),
     };
 
     // Remove connection from registry
@@ -265,11 +267,11 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
 
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:exec", "Connection map missing :handle key"))?;
+        .ok_or_else(|| EvalError::runtime_error("db:exec", ERR_DB_MISSING_HANDLE))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:exec", "Handle must be a number")),
+        _ => return Err(EvalError::runtime_error("db:exec", ERR_DB_HANDLE_NOT_NUMBER)),
     };
 
     // Extract SQL
@@ -344,11 +346,11 @@ pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
 
     let handle_val = conn_map
         .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:query", "Connection map missing :handle key"))?;
+        .ok_or_else(|| EvalError::runtime_error("db:query", ERR_DB_MISSING_HANDLE))?;
 
     let handle = match handle_val {
         Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:query", "Handle must be a number")),
+        _ => return Err(EvalError::runtime_error("db:query", ERR_DB_HANDLE_NOT_NUMBER)),
     };
 
     // Extract SQL
