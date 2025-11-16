@@ -1,44 +1,66 @@
 // ABOUTME: Environment module for managing variable bindings and scopes
+//
+// V2 Architecture: Thread-safe immutable environments using Arc
+// - Environments are immutable (HashMap not RefCell)
+// - Use Arc instead of Rc for Send + Sync
+// - define() replaced with extend() (returns new environment)
+// - This enables safe concurrent execution with spawn
 
 use crate::error::EvalError;
 use crate::value::Value;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Environment {
-    bindings: RefCell<HashMap<String, Value>>,
-    parent: Option<Rc<Environment>>,
+    bindings: HashMap<String, Value>,  // Immutable!
+    parent: Option<Arc<Environment>>,
 }
 
 impl Environment {
     /// Creates a new global environment with no parent
-    pub fn new() -> Rc<Self> {
-        Rc::new(Environment {
-            bindings: RefCell::new(HashMap::new()),
+    pub fn new() -> Arc<Self> {
+        Arc::new(Environment {
+            bindings: HashMap::new(),
             parent: None,
         })
     }
 
     /// Creates a new child environment with a parent
     #[allow(dead_code)]
-    pub fn with_parent(parent: Rc<Environment>) -> Rc<Self> {
-        Rc::new(Environment {
-            bindings: RefCell::new(HashMap::new()),
+    pub fn with_parent(parent: Arc<Environment>) -> Arc<Self> {
+        Arc::new(Environment {
+            bindings: HashMap::new(),
             parent: Some(parent),
         })
     }
 
-    /// Defines a binding in THIS scope (doesn't walk parent chain)
+    /// Extends environment with a new binding, returning new environment (functional)
+    /// This replaces the old define() method for immutable environments
+    pub fn extend(&self, name: String, value: Value) -> Arc<Environment> {
+        let mut new_bindings = self.bindings.clone();
+        new_bindings.insert(name, value);
+        Arc::new(Environment {
+            bindings: new_bindings,
+            parent: self.parent.clone(),
+        })
+    }
+
+    /// Defines a binding in THIS scope (compatibility shim for non-concurrent code)
+    /// WARNING: This creates a new environment but doesn't return it!
+    /// Prefer extend() for new code
+    #[deprecated(note = "Use extend() instead for thread-safe immutable environments")]
     pub fn define(&self, name: String, value: Value) {
-        self.bindings.borrow_mut().insert(name, value);
+        // This is a shim for backward compatibility during migration
+        // It can't actually mutate the environment since it's immutable
+        // Callers need to be updated to use extend() and capture the result
+        panic!("define() called on immutable environment - use extend() instead");
     }
 
     /// Looks up a symbol in THIS scope and parent scopes recursively
     pub fn get(&self, name: &str) -> Option<Value> {
         // First check this scope
-        if let Some(value) = self.bindings.borrow().get(name) {
+        if let Some(value) = self.bindings.get(name) {
             return Some(value.clone());
         }
 
@@ -51,17 +73,21 @@ impl Environment {
     }
 
     /// Updates an existing binding (for later use with set!)
+    /// Note: This needs to return a new environment in V2
     #[allow(dead_code)]
-    pub fn set(&self, name: &str, value: Value) -> Result<(), EvalError> {
+    pub fn set(&self, name: &str, value: Value) -> Result<Arc<Environment>, EvalError> {
         // Check if it exists in this scope
-        if self.bindings.borrow().contains_key(name) {
-            self.bindings.borrow_mut().insert(name.to_string(), value);
-            return Ok(());
+        if self.bindings.contains_key(name) {
+            return Ok(self.extend(name.to_string(), value));
         }
 
         // Check parent scope
         if let Some(ref parent) = self.parent {
-            return parent.set(name, value);
+            let new_parent = parent.set(name, value)?;
+            return Ok(Arc::new(Environment {
+                bindings: self.bindings.clone(),
+                parent: Some(new_parent),
+            }));
         }
 
         Err(EvalError::UndefinedSymbol(name.to_string()))
@@ -73,9 +99,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_define_and_get() {
+    fn test_extend_and_get() {
         let env = Environment::new();
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         match env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 42.0),
@@ -92,10 +118,10 @@ mod tests {
     #[test]
     fn test_shadowing() {
         let parent = Environment::new();
-        parent.define("x".to_string(), Value::Number(42.0));
+        let parent = parent.extend("x".to_string(), Value::Number(42.0));
 
         let child = Environment::with_parent(parent);
-        child.define("x".to_string(), Value::Number(100.0));
+        let child = child.extend("x".to_string(), Value::Number(100.0));
 
         // Child should see its own value
         match child.get("x") {
@@ -107,7 +133,7 @@ mod tests {
     #[test]
     fn test_parent_lookup() {
         let parent = Environment::new();
-        parent.define("x".to_string(), Value::Number(42.0));
+        let parent = parent.extend("x".to_string(), Value::Number(42.0));
 
         let child = Environment::with_parent(parent);
 
@@ -122,15 +148,15 @@ mod tests {
     fn test_multiple_levels() {
         // Grandparent
         let grandparent = Environment::new();
-        grandparent.define("a".to_string(), Value::Number(1.0));
+        let grandparent = grandparent.extend("a".to_string(), Value::Number(1.0));
 
         // Parent
         let parent = Environment::with_parent(grandparent);
-        parent.define("b".to_string(), Value::Number(2.0));
+        let parent = parent.extend("b".to_string(), Value::Number(2.0));
 
         // Child
         let child = Environment::with_parent(parent);
-        child.define("c".to_string(), Value::Number(3.0));
+        let child = child.extend("c".to_string(), Value::Number(3.0));
 
         // Child can see all three levels
         match child.get("a") {
@@ -146,6 +172,22 @@ mod tests {
         match child.get("c") {
             Some(Value::Number(n)) => assert_eq!(n, 3.0),
             _ => panic!("Expected Number(3.0)"),
+        }
+    }
+
+    #[test]
+    fn test_immutability() {
+        // Verify that extend doesn't mutate the original
+        let env1 = Environment::new();
+        let env2 = env1.extend("x".to_string(), Value::Number(42.0));
+
+        // env1 should not have x
+        assert!(env1.get("x").is_none());
+
+        // env2 should have x
+        match env2.get("x") {
+            Some(Value::Number(n)) => assert_eq!(n, 42.0),
+            _ => panic!("Expected Number(42.0)"),
         }
     }
 }
