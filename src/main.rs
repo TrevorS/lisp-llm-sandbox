@@ -256,26 +256,21 @@ fn run_script(
     let contents = std::fs::read_to_string(path)
         .map_err(|e| format!("Cannot read script file {}: {}", path.display(), e))?;
 
-    // Parse and evaluate all expressions in the script
+    // Parse and evaluate all expressions in the script using the nom parser
     let mut remaining = contents.trim();
 
     while !remaining.is_empty() {
-        // Skip whitespace and regular comments (preserves ;;; doc comments)
-        remaining = skip_whitespace_and_regular_comments(remaining);
-        if remaining.is_empty() {
-            break;
-        }
-
-        // Parse one expression
-        match parse_one_expr(remaining) {
+        // Use the proper nom-based parser to get one expression
+        match parser::parse_one(remaining) {
             Ok((expr, rest)) => {
                 // Set environment for help system lookup
                 crate::help::set_current_env(Some(env.clone()));
+
                 // Evaluate the expression
                 match eval_with_macros(expr, env.clone(), macro_reg) {
                     Ok(_result) => {
                         // Scripts typically don't print results unless explicitly printed
-                        remaining = rest;
+                        remaining = rest.trim();
                     }
                     Err(e) => {
                         return Err(format!("Evaluation error: {}", e).into());
@@ -297,26 +292,21 @@ fn load_stdlib(
     env: std::rc::Rc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<(), String> {
-    // Parse each expression in the stdlib
-    // We need to handle multiple top-level forms
+    // Parse each expression in the stdlib using the nom parser
     let mut remaining = code.trim();
 
     while !remaining.is_empty() {
-        // Skip whitespace and regular comments (preserves ;;; doc comments)
-        remaining = skip_whitespace_and_regular_comments(remaining);
-        if remaining.is_empty() {
-            break;
-        }
-
-        // Parse one expression
-        match parse_one_expr(remaining) {
+        // Use the proper nom-based parser to get one expression
+        match parser::parse_one(remaining) {
             Ok((expr, rest)) => {
                 // Set environment for help system lookup
                 crate::help::set_current_env(Some(env.clone()));
+
                 // Evaluate the expression
                 match eval_with_macros(expr, env.clone(), macro_reg) {
                     Ok(_) => {
-                        remaining = rest;
+                        // Move to the next expression
+                        remaining = rest.trim();
                     }
                     Err(e) => {
                         return Err(format!("Eval error: {}", e));
@@ -330,112 +320,6 @@ fn load_stdlib(
     }
 
     Ok(())
-}
-
-/// Skip whitespace and NON-DOC comments in the input string
-/// Preserves ;;; doc comments so they can be captured by parse()
-fn skip_whitespace_and_regular_comments(input: &str) -> &str {
-    let mut remaining = input;
-    loop {
-        remaining = remaining.trim_start();
-        // Skip only ; and ;; comments, NOT ;;; doc comments
-        if remaining.starts_with(";;;") {
-            // Don't skip doc comments!
-            break;
-        } else if remaining.starts_with(";;") || remaining.starts_with(';') {
-            // Skip regular comments
-            if let Some(pos) = remaining.find('\n') {
-                remaining = &remaining[pos + 1..];
-            } else {
-                remaining = "";
-            }
-        } else {
-            break;
-        }
-    }
-    remaining
-}
-
-/// Parse one expression and return it along with the remaining input
-///
-/// This function preserves ;;; doc comments and includes them in the parsed string
-/// so that parse() can capture them via the thread-local PENDING_DOCS.
-fn parse_one_expr(input: &str) -> Result<(value::Value, &str), String> {
-    // Skip only non-doc comments and whitespace, preserve ;;; comments
-    let start = skip_whitespace_and_regular_comments(input);
-    if start.is_empty() {
-        return Err("No expression to parse".to_string());
-    }
-
-    // Collect any preceding ;;; doc comments
-    let mut doc_start = start;
-    while doc_start.starts_with(";;;") {
-        // Find the end of this doc comment line
-        if let Some(pos) = doc_start.find('\n') {
-            doc_start = &doc_start[pos + 1..];
-            doc_start = skip_whitespace_and_regular_comments(doc_start);
-        } else {
-            break;
-        }
-    }
-
-    // Find the end of the first complete s-expression (after the doc comments)
-    let end_pos = find_expr_end(doc_start)?;
-
-    // Include everything from the start of doc comments to the end of the expression
-    let bytes_from_start = start.len() - doc_start.len();
-    let total_expr_len = bytes_from_start + end_pos;
-    let expr_str = &start[..total_expr_len];
-    let rest = &start[total_expr_len..];
-
-    // Parse the expression (this will capture ;;; comments via thread-local)
-    let expr = parse(expr_str)?;
-    Ok((expr, rest))
-}
-
-/// Find the end position of the first complete s-expression
-fn find_expr_end(input: &str) -> Result<usize, String> {
-    let chars: Vec<char> = input.chars().collect();
-    let mut i = 0;
-
-    // Skip initial whitespace
-    while i < chars.len() && chars[i].is_whitespace() {
-        i += 1;
-    }
-
-    if i >= chars.len() {
-        return Err("Empty input".to_string());
-    }
-
-    // Check what kind of expression this is
-    if chars[i] == '(' {
-        // S-expression - find matching closing paren
-        let mut depth = 0;
-        let mut in_string = false;
-
-        while i < chars.len() {
-            match chars[i] {
-                '"' => in_string = !in_string,
-                '(' if !in_string => depth += 1,
-                ')' if !in_string => {
-                    depth -= 1;
-                    if depth == 0 {
-                        return Ok(i + 1);
-                    }
-                }
-                _ => {}
-            }
-            i += 1;
-        }
-
-        Err("Unclosed s-expression".to_string())
-    } else {
-        // Atom - find end of token
-        while i < chars.len() && !chars[i].is_whitespace() && chars[i] != ')' {
-            i += 1;
-        }
-        Ok(i)
-    }
 }
 
 #[cfg(test)]

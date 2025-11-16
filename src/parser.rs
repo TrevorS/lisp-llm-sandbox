@@ -393,11 +393,14 @@ fn parse_expr(input: &str) -> IResult<&str, Value> {
     .parse(input)
 }
 
-/// Public entry point for parsing
+/// Public entry point for parsing a single expression
 ///
 /// Collects any leading doc comments (;;;) and stores them in thread-local storage
 /// so they can be attached to the next `define` expression.
-pub fn parse(input: &str) -> Result<Value, String> {
+///
+/// Returns the parsed value and the remaining unparsed input.
+/// This is useful for parsing multiple expressions from a single string.
+pub fn parse_one(input: &str) -> Result<(Value, &str), String> {
     // First, collect any leading doc comments
     let (input_after_docs, docs) = ws_and_collect_docs(input).unwrap_or((input, Vec::new()));
 
@@ -409,24 +412,32 @@ pub fn parse(input: &str) -> Result<Value, String> {
     // Check if input is only whitespace/comments (nothing to parse)
     if input_after_docs.trim().is_empty() {
         // Return nil for comment-only input
-        return Ok(Value::Nil);
+        return Ok((Value::Nil, ""));
     }
 
     // Parse the expression
     match parse_expr(input_after_docs) {
-        Ok((rest, value)) => {
-            // Check if there's unconsumed input (after skipping trailing whitespace)
-            let (rest, _) = ws_and_comments(rest).unwrap_or((rest, ()));
-            if !rest.is_empty() {
-                Err(format!(
-                    "Parse error: unexpected trailing input: '{}'",
-                    rest
-                ))
-            } else {
-                Ok(value)
-            }
-        }
-        Err(e) => Err(format!("Parse error: {}", e)),
+        Ok((rest, value)) => Ok((value, rest)),
+        Err(e) => Err(format!("Parse error: {:?}", e)),
+    }
+}
+
+/// Public entry point for parsing (expects to consume all input)
+///
+/// Collects any leading doc comments (;;;) and stores them in thread-local storage
+/// so they can be attached to the next `define` expression.
+pub fn parse(input: &str) -> Result<Value, String> {
+    let (value, rest) = parse_one(input)?;
+
+    // Check if there's unconsumed input (after skipping trailing whitespace)
+    let (rest, _) = ws_and_comments(rest).unwrap_or((rest, ()));
+    if !rest.is_empty() {
+        Err(format!(
+            "Parse error: unexpected trailing input: '{}'",
+            rest
+        ))
+    } else {
+        Ok(value)
     }
 }
 
