@@ -1,7 +1,7 @@
 // ABOUTME: Evaluator module for executing parsed Lisp expressions
 
 use crate::env::Environment;
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_TWO_OR_THREE};
 use crate::macros::MacroRegistry;
 use crate::parser;
 use crate::value::Value;
@@ -71,13 +71,21 @@ pub fn eval_with_macros(
                     }
                     Value::Symbol(s) if s == "quote" => {
                         if items.len() != 2 {
-                            return Err(EvalError::arity_error("quote", "1", items.len() - 1));
+                            return Err(EvalError::arity_error(
+                                "quote",
+                                ARITY_ONE,
+                                items.len() - 1,
+                            ));
                         }
                         return Ok(items[1].clone());
                     }
                     Value::Symbol(s) if s == "quasiquote" => {
                         if items.len() != 2 {
-                            return Err(EvalError::arity_error("quasiquote", "1", items.len() - 1));
+                            return Err(EvalError::arity_error(
+                                "quasiquote",
+                                ARITY_ONE,
+                                items.len() - 1,
+                            ));
                         }
                         return eval_quasiquote(items[1].clone(), 1, current_env, macro_reg);
                     }
@@ -87,7 +95,11 @@ pub fn eval_with_macros(
                     Value::Symbol(s) if s == "if" => {
                         // Tail-optimized if: evaluate condition, then loop on branch
                         if items.len() < 3 || items.len() > 4 {
-                            return Err(EvalError::arity_error("if", "2-3", items.len() - 1));
+                            return Err(EvalError::arity_error(
+                                "if",
+                                ARITY_TWO_OR_THREE,
+                                items.len() - 1,
+                            ));
                         }
 
                         let condition =
@@ -364,7 +376,12 @@ fn eval_let(
             Value::List(pair) if pair.len() == 2 => {
                 let name = match &pair[0] {
                     Value::Symbol(s) => s.clone(),
-                    _ => return Err(EvalError::runtime_error("let", "binding name must be symbol")),
+                    _ => {
+                        return Err(EvalError::runtime_error(
+                            "let",
+                            "binding name must be symbol",
+                        ))
+                    }
                 };
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
                 new_env.define(name, value);
@@ -406,7 +423,11 @@ fn eval_quasiquote(
                 // (unquote expr) at depth 1 → evaluate expr
                 Value::Symbol(s) if s == "unquote" && depth == 1 => {
                     if items.len() != 2 {
-                        return Err(EvalError::arity_error("unquote", "1", items.len() - 1));
+                        return Err(EvalError::arity_error(
+                            "unquote",
+                            ARITY_ONE,
+                            items.len() - 1,
+                        ));
                     }
                     eval_with_macros(items[1].clone(), env, macro_reg)
                 }
@@ -414,7 +435,11 @@ fn eval_quasiquote(
                 // (quasiquote ...) → increase depth and recurse
                 Value::Symbol(s) if s == "quasiquote" => {
                     if items.len() != 2 {
-                        return Err(EvalError::arity_error("quasiquote", "1", items.len() - 1));
+                        return Err(EvalError::arity_error(
+                            "quasiquote",
+                            ARITY_ONE,
+                            items.len() - 1,
+                        ));
                     }
                     let inner = eval_quasiquote(items[1].clone(), depth + 1, env, macro_reg)?;
                     Ok(Value::List(vec![Value::Symbol("quasiquote".into()), inner]))
@@ -493,7 +518,12 @@ fn eval_defmacro(
 
     let name = match &args[0] {
         Value::Symbol(n) => n.clone(),
-        _ => return Err(EvalError::runtime_error("defmacro", "name must be a symbol")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "defmacro",
+                "name must be a symbol",
+            ))
+        }
     };
 
     let params = match &args[1] {
@@ -507,7 +537,12 @@ fn eval_defmacro(
                 )),
             })
             .collect::<Result<Vec<_>, _>>()?,
-        _ => return Err(EvalError::runtime_error("defmacro", "params must be a list")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "defmacro",
+                "params must be a list",
+            ))
+        }
     };
 
     // Body is the remaining args, wrapped in begin if multiple

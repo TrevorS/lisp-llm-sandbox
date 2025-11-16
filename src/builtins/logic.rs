@@ -8,7 +8,7 @@
 //!
 //! All functions return boolean (#t or #f)
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -80,7 +80,7 @@ pub fn builtin_or(args: &[Value]) -> Result<Value, EvalError> {
 /// and, or
 pub fn builtin_not(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("not", "1", args.len()));
+        return Err(EvalError::arity_error("not", ARITY_ONE, args.len()));
     }
 
     match args[0] {

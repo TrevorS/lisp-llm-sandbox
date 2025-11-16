@@ -15,7 +15,7 @@
 //! Assertions return #t on success, or create an Error value on failure
 
 use crate::env::Environment;
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE_OR_TWO, ARITY_TWO, ARITY_TWO_OR_THREE, ARITY_ZERO_OR_ONE};
 use crate::eval::eval;
 use crate::value::Value;
 use lisp_macros::builtin;
@@ -48,7 +48,11 @@ thread_local! {
 /// assert-equal, assert-error
 pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() || args.len() > 2 {
-        return Err(EvalError::arity_error("assert", "1-2", args.len()));
+        return Err(EvalError::arity_error(
+            "assert",
+            ARITY_ONE_OR_TWO,
+            args.len(),
+        ));
     }
 
     let condition = &args[0];
@@ -89,7 +93,11 @@ pub fn builtin_assert(args: &[Value]) -> Result<Value, EvalError> {
 /// assert, =
 pub fn builtin_assert_equal(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::arity_error("assert-equal", "2-3", args.len()));
+        return Err(EvalError::arity_error(
+            "assert-equal",
+            ARITY_TWO_OR_THREE,
+            args.len(),
+        ));
     }
 
     let actual = &args[0];
@@ -158,7 +166,11 @@ fn values_equal(a: &Value, b: &Value) -> bool {
 /// assert, error?
 pub fn builtin_assert_error(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() || args.len() > 2 {
-        return Err(EvalError::arity_error("assert-error", "1-2", args.len()));
+        return Err(EvalError::arity_error(
+            "assert-error",
+            ARITY_ONE_OR_TWO,
+            args.len(),
+        ));
     }
 
     let value = &args[0];
@@ -198,12 +210,23 @@ pub fn builtin_assert_error(args: &[Value]) -> Result<Value, EvalError> {
 /// run-all-tests, clear-tests
 pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("register-test", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "register-test",
+            ARITY_TWO,
+            args.len(),
+        ));
     }
 
     let name = match &args[0] {
         Value::String(s) => s.clone(),
-        _ => return Err(EvalError::type_error("register-test", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "register-test",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     let test_fn = args[1].clone();
@@ -211,7 +234,14 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
     // Verify it's a lambda
     match &test_fn {
         Value::Lambda { .. } => {}
-        _ => return Err(EvalError::type_error("register-test", "lambda", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "register-test",
+                "lambda",
+                &args[1],
+                2,
+            ))
+        }
     }
 
     TEST_REGISTRY.with(|registry| {
@@ -238,7 +268,11 @@ pub fn builtin_register_test(args: &[Value]) -> Result<Value, EvalError> {
 /// register-test, clear-tests
 pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::arity_error("run-all-tests", "0", args.len()));
+        return Err(EvalError::arity_error(
+            "run-all-tests",
+            ARITY_ZERO_OR_ONE,
+            args.len(),
+        ));
     }
 
     let mut results = Vec::new();
@@ -320,7 +354,11 @@ pub fn builtin_run_all_tests(args: &[Value]) -> Result<Value, EvalError> {
 /// register-test, run-all-tests
 pub fn builtin_clear_tests(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::arity_error("clear-tests", "0", args.len()));
+        return Err(EvalError::arity_error(
+            "clear-tests",
+            ARITY_ZERO_OR_ONE,
+            args.len(),
+        ));
     }
 
     TEST_REGISTRY.with(|registry| {

@@ -7,7 +7,7 @@
 //!
 //! All requests are checked against a URL allowlist for safety
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_TWO, ERR_SANDBOX_NOT_INIT};
 use crate::value::Value;
 use lisp_macros::builtin;
 use std::collections::HashMap;
@@ -37,7 +37,11 @@ use super::SANDBOX;
 /// http-get, http-post
 pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("http-request", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "http-request",
+            ARITY_TWO,
+            args.len(),
+        ));
     }
 
     let url = match &args[0] {
@@ -79,33 +83,51 @@ pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
             Some(header_vec)
         }
         None => None,
-        _ => return Err(EvalError::runtime_error("http-request", "invalid :headers in options")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "http-request",
+                "invalid :headers in options",
+            ))
+        }
     };
 
     // Extract optional body
     let body = match options.get("body") {
         Some(Value::String(b)) => Some(b.as_str()),
         None => None,
-        _ => return Err(EvalError::runtime_error("http-request", "body must be a string")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "http-request",
+                "body must be a string",
+            ))
+        }
     };
 
     // Extract optional timeout
     let timeout = match options.get("timeout") {
         Some(Value::Number(t)) => Some(*t as u64),
         None => None,
-        _ => return Err(EvalError::runtime_error("http-request", "timeout must be a number")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "http-request",
+                "timeout must be a number",
+            ))
+        }
     };
 
     SANDBOX.with(|s| {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("http-request", ERR_SANDBOX_NOT_INIT))?;
 
         let response = sandbox
             .http_request(url, &method, headers, body, timeout)
             .map_err(|e| {
-                EvalError::IoError(format!("HTTP {} request to '{}' failed: {}", method, url, e))
+                EvalError::runtime_error(
+                    "http-request",
+                    format!("HTTP {} request to '{}' failed: {}", method, url, e),
+                )
             })?;
 
         // Build response map

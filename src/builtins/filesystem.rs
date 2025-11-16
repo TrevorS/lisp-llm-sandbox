@@ -11,7 +11,7 @@
 //!
 //! All operations are restricted to whitelisted paths via capability-based sandboxing
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_TWO, ERR_SANDBOX_NOT_INIT};
 use crate::value::Value;
 use lisp_macros::builtin;
 use std::collections::HashMap;
@@ -34,7 +34,7 @@ use super::SANDBOX;
 /// write-file, file-exists?
 pub fn read_file(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("read-file", "1", args.len()));
+        return Err(EvalError::arity_error("read-file", ARITY_ONE, args.len()));
     }
 
     let path = match &args[0] {
@@ -46,12 +46,12 @@ pub fn read_file(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("read-file", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .read_file(path)
             .map(Value::String)
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("read-file", e.to_string()))
     })
 }
 
@@ -71,7 +71,7 @@ pub fn read_file(args: &[Value]) -> Result<Value, EvalError> {
 /// read-file, file-exists?
 pub fn write_file(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("write-file", "2", args.len()));
+        return Err(EvalError::arity_error("write-file", ARITY_TWO, args.len()));
     }
 
     let path = match &args[0] {
@@ -88,12 +88,12 @@ pub fn write_file(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("write-file", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .write_file(path, contents)
             .map(|_| Value::Bool(true))
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("write-file", e.to_string()))
     })
 }
 
@@ -114,7 +114,11 @@ pub fn write_file(args: &[Value]) -> Result<Value, EvalError> {
 /// file-size, read-file
 pub fn file_exists_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("file-exists?", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "file-exists?",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let path = match &args[0] {
@@ -126,12 +130,12 @@ pub fn file_exists_q(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("file-exists?", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .file_exists(path)
             .map(Value::Bool)
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("file-exists?", e.to_string()))
     })
 }
 
@@ -151,7 +155,7 @@ pub fn file_exists_q(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?, read-file
 pub fn file_size(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("file-size", "1", args.len()));
+        return Err(EvalError::arity_error("file-size", ARITY_ONE, args.len()));
     }
 
     let path = match &args[0] {
@@ -163,12 +167,12 @@ pub fn file_size(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("file-size", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .file_size(path)
             .map(|size| Value::Number(size as f64))
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("file-size", e.to_string()))
     })
 }
 
@@ -188,7 +192,7 @@ pub fn file_size(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?
 pub fn list_files(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("list-files", "1", args.len()));
+        return Err(EvalError::arity_error("list-files", ARITY_ONE, args.len()));
     }
 
     let dir = match &args[0] {
@@ -200,12 +204,12 @@ pub fn list_files(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("list-files", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .list_files(dir)
             .map(|files| Value::List(files.into_iter().map(Value::String).collect::<Vec<_>>()))
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("list-files", e.to_string()))
     })
 }
 
@@ -230,7 +234,7 @@ pub fn list_files(args: &[Value]) -> Result<Value, EvalError> {
 /// file-exists?, file-size
 pub fn file_stat(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("file-stat", "1", args.len()));
+        return Err(EvalError::arity_error("file-stat", ARITY_ONE, args.len()));
     }
 
     let path = match &args[0] {
@@ -242,7 +246,7 @@ pub fn file_stat(args: &[Value]) -> Result<Value, EvalError> {
         let sandbox_ref = s.borrow();
         let sandbox = sandbox_ref
             .as_ref()
-            .ok_or_else(|| EvalError::IoError("Sandbox not initialized".to_string()))?;
+            .ok_or_else(|| EvalError::runtime_error("file-stat", ERR_SANDBOX_NOT_INIT))?;
 
         sandbox
             .file_stat(path)
@@ -256,6 +260,6 @@ pub fn file_stat(args: &[Value]) -> Result<Value, EvalError> {
                 result_map.insert("readonly".to_string(), Value::Bool(stat.readonly));
                 Value::Map(result_map)
             })
-            .map_err(|e| EvalError::IoError(e.to_string()))
+            .map_err(|e| EvalError::runtime_error("file-stat", e.to_string()))
     })
 }

@@ -55,7 +55,11 @@ impl Tool for SimpleTool {
         // Validate arity if specified
         if let Some(expected_arity) = self.arity {
             if args.len() != expected_arity {
-                return Err(EvalError::arity_error(&self.name, expected_arity.to_string(), args.len()));
+                return Err(EvalError::arity_error(
+                    &self.name,
+                    expected_arity.to_string(),
+                    args.len(),
+                ));
             }
         }
         (self.func)(args)

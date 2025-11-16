@@ -8,7 +8,7 @@
 //! - Conversion: string->number, number->string, string->list, list->string
 //! - Measurement: string-length
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE, ARITY_THREE, ARITY_TWO};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -26,7 +26,11 @@ use lisp_macros::builtin;
 /// string-join, substring
 pub fn builtin_string_split(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("string-split", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "string-split",
+            ARITY_TWO,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
@@ -61,7 +65,7 @@ pub fn builtin_string_split(args: &[Value]) -> Result<Value, EvalError> {
 /// string-split, string-append
 pub fn builtin_string_join(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("string-join", "2", args.len()));
+        return Err(EvalError::arity_error("string-join", ARITY_TWO, args.len()));
     }
 
     let list = match &args[0] {
@@ -79,7 +83,10 @@ pub fn builtin_string_join(args: &[Value]) -> Result<Value, EvalError> {
         .enumerate()
         .map(|(i, v)| match v {
             Value::String(s) => Ok(s.clone()),
-            _ => Err(EvalError::runtime_error("string-join", format!("element {} is not a string", i))),
+            _ => Err(EvalError::runtime_error(
+                "string-join",
+                format!("element {} is not a string", i),
+            )),
         })
         .collect();
 
@@ -100,7 +107,7 @@ pub fn builtin_string_join(args: &[Value]) -> Result<Value, EvalError> {
 /// string-split, string-trim
 pub fn builtin_substring(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 3 {
-        return Err(EvalError::arity_error("substring", "3", args.len()));
+        return Err(EvalError::arity_error("substring", ARITY_THREE, args.len()));
     }
 
     let string = match &args[0] {
@@ -110,23 +117,40 @@ pub fn builtin_substring(args: &[Value]) -> Result<Value, EvalError> {
 
     let start = match &args[1] {
         Value::Number(n) if *n >= 0.0 && n.fract() == 0.0 => *n as usize,
-        _ => return Err(EvalError::type_error("substring", "non-negative integer", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "substring",
+                "non-negative integer",
+                &args[1],
+                2,
+            ))
+        }
     };
 
     let end = match &args[2] {
         Value::Number(n) if *n >= 0.0 && n.fract() == 0.0 => *n as usize,
-        _ => return Err(EvalError::type_error("substring", "non-negative integer", &args[2], 3)),
+        _ => {
+            return Err(EvalError::type_error(
+                "substring",
+                "non-negative integer",
+                &args[2],
+                3,
+            ))
+        }
     };
 
     let chars: Vec<char> = string.chars().collect();
 
     if start > chars.len() || end > chars.len() || start > end {
-        return Err(EvalError::runtime_error("substring", format!(
-            "invalid indices: start={}, end={}, length={}",
-            start,
-            end,
-            chars.len()
-        )));
+        return Err(EvalError::runtime_error(
+            "substring",
+            format!(
+                "invalid indices: start={}, end={}, length={}",
+                start,
+                end,
+                chars.len()
+            ),
+        ));
     }
 
     let result: String = chars[start..end].iter().collect();
@@ -151,7 +175,7 @@ pub fn builtin_substring(args: &[Value]) -> Result<Value, EvalError> {
 /// substring
 pub fn builtin_string_trim(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string-trim", "1", args.len()));
+        return Err(EvalError::arity_error("string-trim", ARITY_ONE, args.len()));
     }
 
     let string = match &args[0] {
@@ -176,7 +200,11 @@ pub fn builtin_string_trim(args: &[Value]) -> Result<Value, EvalError> {
 /// string-lower
 pub fn builtin_string_upper(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string-upper", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string-upper",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
@@ -201,7 +229,11 @@ pub fn builtin_string_upper(args: &[Value]) -> Result<Value, EvalError> {
 /// string-upper
 pub fn builtin_string_lower(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string-lower", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string-lower",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
@@ -226,22 +258,47 @@ pub fn builtin_string_lower(args: &[Value]) -> Result<Value, EvalError> {
 /// string-contains?
 pub fn builtin_string_replace(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 3 {
-        return Err(EvalError::arity_error("string-replace", "3", args.len()));
+        return Err(EvalError::arity_error(
+            "string-replace",
+            ARITY_THREE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-replace", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-replace",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     let pattern = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-replace", "string", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-replace",
+                "string",
+                &args[1],
+                2,
+            ))
+        }
     };
 
     let replacement = match &args[2] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-replace", "string", &args[2], 3)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-replace",
+                "string",
+                &args[2],
+                3,
+            ))
+        }
     };
 
     Ok(Value::String(string.replace(pattern, replacement)))
@@ -261,17 +318,35 @@ pub fn builtin_string_replace(args: &[Value]) -> Result<Value, EvalError> {
 /// string-starts-with?, string-ends-with?
 pub fn builtin_string_contains(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("string-contains?", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "string-contains?",
+            ARITY_TWO,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-contains?", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-contains?",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     let substring = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-contains?", "string", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-contains?",
+                "string",
+                &args[1],
+                2,
+            ))
+        }
     };
 
     Ok(Value::Bool(string.contains(substring.as_str())))
@@ -291,17 +366,35 @@ pub fn builtin_string_contains(args: &[Value]) -> Result<Value, EvalError> {
 /// string-ends-with?, string-contains?
 pub fn builtin_string_starts_with(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("string-starts-with?", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "string-starts-with?",
+            "2",
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-starts-with?", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-starts-with?",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     let prefix = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-starts-with?", "string", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-starts-with?",
+                "string",
+                &args[1],
+                2,
+            ))
+        }
     };
 
     Ok(Value::Bool(string.starts_with(prefix.as_str())))
@@ -321,17 +414,35 @@ pub fn builtin_string_starts_with(args: &[Value]) -> Result<Value, EvalError> {
 /// string-starts-with?, string-contains?
 pub fn builtin_string_ends_with(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("string-ends-with?", "2", args.len()));
+        return Err(EvalError::arity_error(
+            "string-ends-with?",
+            ARITY_TWO,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-ends-with?", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-ends-with?",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     let suffix = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-ends-with?", "string", &args[1], 2)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-ends-with?",
+                "string",
+                &args[1],
+                2,
+            ))
+        }
     };
 
     Ok(Value::Bool(string.ends_with(suffix.as_str())))
@@ -351,12 +462,23 @@ pub fn builtin_string_ends_with(args: &[Value]) -> Result<Value, EvalError> {
 /// string-length
 pub fn builtin_string_empty(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string-empty?", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string-empty?",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-empty?", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-empty?",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     Ok(Value::Bool(string.is_empty()))
@@ -376,12 +498,23 @@ pub fn builtin_string_empty(args: &[Value]) -> Result<Value, EvalError> {
 /// string-empty?
 pub fn builtin_string_length(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string-length", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string-length",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string-length", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string-length",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     Ok(Value::Number(string.chars().count() as f64))
@@ -401,12 +534,23 @@ pub fn builtin_string_length(args: &[Value]) -> Result<Value, EvalError> {
 /// number->string
 pub fn builtin_string_to_number(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string->number", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string->number",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(EvalError::type_error("string->number", "string", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "string->number",
+                "string",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     match string.trim().parse::<f64>() {
@@ -429,12 +573,23 @@ pub fn builtin_string_to_number(args: &[Value]) -> Result<Value, EvalError> {
 /// string->number
 pub fn builtin_number_to_string(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("number->string", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "number->string",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let number = match &args[0] {
         Value::Number(n) => n,
-        _ => return Err(EvalError::type_error("number->string", "number", &args[0], 1)),
+        _ => {
+            return Err(EvalError::type_error(
+                "number->string",
+                "number",
+                &args[0],
+                1,
+            ))
+        }
     };
 
     // Format nicely: if it's a whole number, don't show decimal point
@@ -461,7 +616,11 @@ pub fn builtin_number_to_string(args: &[Value]) -> Result<Value, EvalError> {
 /// list->string
 pub fn builtin_string_to_list(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("string->list", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "string->list",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let string = match &args[0] {
@@ -491,7 +650,11 @@ pub fn builtin_string_to_list(args: &[Value]) -> Result<Value, EvalError> {
 /// string->list
 pub fn builtin_list_to_string(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("list->string", "1", args.len()));
+        return Err(EvalError::arity_error(
+            "list->string",
+            ARITY_ONE,
+            args.len(),
+        ));
     }
 
     let list = match &args[0] {
@@ -503,7 +666,12 @@ pub fn builtin_list_to_string(args: &[Value]) -> Result<Value, EvalError> {
     for (i, item) in list.iter().enumerate() {
         match item {
             Value::String(s) => result.push_str(s),
-            _ => return Err(EvalError::runtime_error("list->string", format!("element {} is not a string", i))),
+            _ => {
+                return Err(EvalError::runtime_error(
+                    "list->string",
+                    format!("element {} is not a string", i),
+                ))
+            }
         }
     }
 

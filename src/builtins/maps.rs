@@ -2,7 +2,9 @@
 //!
 //! Functions for working with key-value maps
 
-use crate::error::EvalError;
+use crate::error::{
+    EvalError, ARITY_ONE, ARITY_THREE, ARITY_TWO, ARITY_TWO_OR_THREE, ARITY_ZERO_OR_ONE,
+};
 use crate::value::Value;
 use lisp_macros::builtin;
 use std::collections::HashMap;
@@ -21,7 +23,11 @@ use std::collections::HashMap;
 /// map-set, map-get
 pub fn map_new(args: &[Value]) -> Result<Value, EvalError> {
     if !args.is_empty() {
-        return Err(EvalError::arity_error("map-new", "0", args.len()));
+        return Err(EvalError::arity_error(
+            "map-new",
+            ARITY_ZERO_OR_ONE,
+            args.len(),
+        ));
     }
     Ok(Value::Map(HashMap::new()))
 }
@@ -41,7 +47,11 @@ pub fn map_new(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set, map-has?
 pub fn map_get(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(EvalError::arity_error("map-get", "2-3", args.len()));
+        return Err(EvalError::arity_error(
+            "map-get",
+            ARITY_TWO_OR_THREE,
+            args.len(),
+        ));
     }
 
     let map = match &args[0] {
@@ -78,7 +88,7 @@ pub fn map_get(args: &[Value]) -> Result<Value, EvalError> {
 /// map-get, map-remove
 pub fn map_set(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 3 {
-        return Err(EvalError::arity_error("map-set", "3", args.len()));
+        return Err(EvalError::arity_error("map-set", ARITY_THREE, args.len()));
     }
 
     let map = match &args[0] {
@@ -113,7 +123,7 @@ pub fn map_set(args: &[Value]) -> Result<Value, EvalError> {
 /// map-get, map-keys
 pub fn map_has_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("map-has?", "2", args.len()));
+        return Err(EvalError::arity_error("map-has?", ARITY_TWO, args.len()));
     }
 
     let map = match &args[0] {
@@ -144,7 +154,7 @@ pub fn map_has_q(args: &[Value]) -> Result<Value, EvalError> {
 /// map-values, map-entries
 pub fn map_keys(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("map-keys", "1", args.len()));
+        return Err(EvalError::arity_error("map-keys", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
@@ -176,7 +186,7 @@ pub fn map_keys(args: &[Value]) -> Result<Value, EvalError> {
 /// map-keys, map-entries
 pub fn map_values(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("map-values", "1", args.len()));
+        return Err(EvalError::arity_error("map-values", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
@@ -207,7 +217,7 @@ pub fn map_values(args: &[Value]) -> Result<Value, EvalError> {
 /// map-keys, map-values
 pub fn map_entries(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("map-entries", "1", args.len()));
+        return Err(EvalError::arity_error("map-entries", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
@@ -246,7 +256,7 @@ pub fn map_entries(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set
 pub fn map_merge(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("map-merge", "2", args.len()));
+        return Err(EvalError::arity_error("map-merge", ARITY_TWO, args.len()));
     }
 
     let map1 = match &args[0] {
@@ -281,7 +291,7 @@ pub fn map_merge(args: &[Value]) -> Result<Value, EvalError> {
 /// map-set, map-has?
 pub fn map_remove(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("map-remove", "2", args.len()));
+        return Err(EvalError::arity_error("map-remove", ARITY_TWO, args.len()));
     }
 
     let map = match &args[0] {
@@ -314,7 +324,7 @@ pub fn map_remove(args: &[Value]) -> Result<Value, EvalError> {
 /// map-size
 pub fn map_empty_q(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("map-empty?", "1", args.len()));
+        return Err(EvalError::arity_error("map-empty?", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {
@@ -340,7 +350,7 @@ pub fn map_empty_q(args: &[Value]) -> Result<Value, EvalError> {
 /// map-empty?
 pub fn map_size(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("map-size", "1", args.len()));
+        return Err(EvalError::arity_error("map-size", ARITY_ONE, args.len()));
     }
 
     let map = match &args[0] {

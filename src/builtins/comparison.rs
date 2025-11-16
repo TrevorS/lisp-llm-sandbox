@@ -10,7 +10,7 @@
 //!
 //! All comparison functions return boolean (#t or #f)
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_TWO};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -30,7 +30,7 @@ use lisp_macros::builtin;
 /// <, >, <=, >=
 pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("=", "2", args.len()));
+        return Err(EvalError::arity_error("=", ARITY_TWO, args.len()));
     }
 
     let result = match (&args[0], &args[1]) {
@@ -61,7 +61,7 @@ pub fn builtin_eq(args: &[Value]) -> Result<Value, EvalError> {
 /// >, <=, >=, =
 pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("<", "2", args.len()));
+        return Err(EvalError::arity_error("<", ARITY_TWO, args.len()));
     }
 
     let a = match args[0] {
@@ -92,7 +92,7 @@ pub fn builtin_lt(args: &[Value]) -> Result<Value, EvalError> {
 /// <, <=, >=, =
 pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error(">", "2", args.len()));
+        return Err(EvalError::arity_error(">", ARITY_TWO, args.len()));
     }
 
     let a = match args[0] {
@@ -123,7 +123,7 @@ pub fn builtin_gt(args: &[Value]) -> Result<Value, EvalError> {
 /// <, >, >=, =
 pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("<=", "2", args.len()));
+        return Err(EvalError::arity_error("<=", ARITY_TWO, args.len()));
     }
 
     let a = match args[0] {
@@ -154,7 +154,7 @@ pub fn builtin_le(args: &[Value]) -> Result<Value, EvalError> {
 /// <, >, <=, =
 pub fn builtin_ge(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error(">=", "2", args.len()));
+        return Err(EvalError::arity_error(">=", ARITY_TWO, args.len()));
     }
 
     let a = match args[0] {

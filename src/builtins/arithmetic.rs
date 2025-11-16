@@ -8,7 +8,7 @@
 //! - `/`: Divide first by subsequent args, or reciprocal if single arg
 //! - `%`: Remainder operation (modulo) - exactly 2 args required
 
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_AT_LEAST_ONE, ARITY_TWO};
 use crate::value::Value;
 use lisp_macros::builtin;
 
@@ -54,7 +54,7 @@ pub fn builtin_add(args: &[Value]) -> Result<Value, EvalError> {
 /// +, *, /
 pub fn builtin_sub(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::arity_error("-", "at least 1", 0));
+        return Err(EvalError::arity_error("-", ARITY_AT_LEAST_ONE, 0));
     }
 
     let first = match &args[0] {
@@ -118,7 +118,7 @@ pub fn builtin_mul(args: &[Value]) -> Result<Value, EvalError> {
 /// +, -, *, %
 pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::arity_error("/", "at least 1", 0));
+        return Err(EvalError::arity_error("/", ARITY_AT_LEAST_ONE, 0));
     }
 
     let first = match &args[0] {
@@ -163,7 +163,7 @@ pub fn builtin_div(args: &[Value]) -> Result<Value, EvalError> {
 /// /
 pub fn builtin_mod(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::arity_error("%", "2", args.len()));
+        return Err(EvalError::arity_error("%", ARITY_TWO, args.len()));
     }
 
     let a = match &args[0] {

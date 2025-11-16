@@ -12,7 +12,7 @@
 //! - Lisp Keyword → JSON string (strip the :)
 
 use crate::env::Environment;
-use crate::error::EvalError;
+use crate::error::{EvalError, ARITY_ONE};
 use crate::help::HelpEntry;
 use crate::value::Value;
 use serde_json;
@@ -81,7 +81,7 @@ fn json_to_value(json: &serde_json::Value) -> Value {
 /// json:encode - Encode Lisp value to JSON string
 fn json_encode(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("json:encode", "1", args.len()));
+        return Err(EvalError::arity_error("json:encode", ARITY_ONE, args.len()));
     }
 
     let json_value = value_to_json(&args[0])?;
@@ -94,7 +94,7 @@ fn json_encode(args: &[Value]) -> Result<Value, EvalError> {
 /// json:decode - Decode JSON string to Lisp value
 fn json_decode(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("json:decode", "1", args.len()));
+        return Err(EvalError::arity_error("json:decode", ARITY_ONE, args.len()));
     }
 
     let json_str = match &args[0] {
@@ -111,7 +111,7 @@ fn json_decode(args: &[Value]) -> Result<Value, EvalError> {
 /// json:pretty - Encode Lisp value to pretty-printed JSON string
 fn json_pretty(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::arity_error("json:pretty", "1", args.len()));
+        return Err(EvalError::arity_error("json:pretty", ARITY_ONE, args.len()));
     }
 
     let json_value = value_to_json(&args[0])?;

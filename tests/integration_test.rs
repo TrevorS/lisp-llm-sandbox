@@ -9,9 +9,16 @@ fn setup() -> (Rc<env::Environment>, macros::MacroRegistry) {
     let mut macro_reg = macros::MacroRegistry::new();
     builtins::register_builtins(env.clone());
 
-    // Load stdlib
-    let stdlib = include_str!("../src/stdlib.lisp");
-    load_stdlib(stdlib, env.clone(), &mut macro_reg).expect("Failed to load stdlib");
+    // Load modular stdlib (core, math, string, test, http)
+    let core = include_str!("../src/stdlib/lisp/core.lisp");
+    let math = include_str!("../src/stdlib/lisp/math.lisp");
+    let strings = include_str!("../src/stdlib/lisp/string.lisp");
+    let test = include_str!("../src/stdlib/lisp/test.lisp");
+    let http = include_str!("../src/stdlib/lisp/http.lisp");
+
+    for stdlib in &[core, math, strings, test, http] {
+        load_stdlib(stdlib, env.clone(), &mut macro_reg).expect("Failed to load stdlib module");
+    }
 
     (env, macro_reg)
 }
