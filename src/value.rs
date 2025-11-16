@@ -77,7 +77,16 @@ impl fmt::Display for Value {
             Value::Number(n) => {
                 // Format numbers cleanly - if it's a whole number, display without decimal
                 if n.fract() == 0.0 && n.is_finite() {
-                    write!(f, "{}", *n as i64)
+                    // Handle very large/small numbers that exceed i64 range
+                    if n.is_infinite() || n.is_nan() {
+                        write!(f, "{}", n)
+                    } else if *n >= i64::MAX as f64 || *n <= i64::MIN as f64 {
+                        // Use floating-point notation for numbers outside i64 range
+                        write!(f, "{:.0}", n)
+                    } else {
+                        // Use integer notation for numbers within i64 range
+                        write!(f, "{}", *n as i64)
+                    }
                 } else {
                     write!(f, "{}", n)
                 }

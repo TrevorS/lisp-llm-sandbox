@@ -40,9 +40,11 @@
 ;;; - (string-concat '("hello" " " "world")) => "hello world"
 ;;; - (string-concat '()) => ""
 ;;;
-;;; **Notes:** Uses list->string. Equivalent to (string-join lst "").
+;;; **Notes:** Handles empty list by returning empty string.
 (define (string-concat lst)
-  (list->string lst))
+  (if (nil? lst)
+      ""
+      (list->string lst)))
 
 ;;; Reverse a string.
 ;;;
@@ -61,6 +63,21 @@
 (define (string-reverse s)
   (list->string (reverse (string->list s))))
 
+;;; Tail-recursive helper for string-repeat with accumulator.
+;;;
+;;; **Parameters:**
+;;; - s: String to repeat
+;;; - count: Remaining repetitions
+;;; - acc: Accumulated result
+;;;
+;;; **Returns:** Accumulated string after count repetitions
+;;;
+;;; **Notes:** Internal helper function. Do not call directly.
+(define (string-repeat-helper s count acc)
+  (if (<= count 0)
+      acc
+      (string-repeat-helper s (- count 1) (string-append acc s))))
+
 ;;; Repeat string n times.
 ;;;
 ;;; **Parameters:**
@@ -75,11 +92,11 @@
 ;;; - (string-repeat "ab" 3) => "ababab"
 ;;; - (string-repeat "x" 0) => ""
 ;;;
-;;; **Notes:** Uses recursion with tail-call optimization.
+;;; **Notes:** Uses tail-recursive helper with accumulator for efficiency.
 (define (string-repeat s n)
   (if (<= n 0)
       ""
-      (string-append s (string-repeat s (- n 1)))))
+      (string-repeat-helper s n "")))
 
 ;; ============================================================================
 ;; String Parsing

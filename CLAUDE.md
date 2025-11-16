@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
-- **281 comprehensive tests** covering all major features (88 unit + 118 integration + 11 concurrency + 17 stdlib + 21 builtin + 25 string tests)
+- **213 tests** covering all major features (90 unit + 120 integration + 29 concurrency + 17 stdlib + 1 sandbox + 21 builtin + 25 string tests)
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **38 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help, concurrency)
-- **41 standard library functions** in pure Lisp organized into 5 focused modules (core, math, string, test, http)
-- **Complete help system** with markdown documentation for all 87 functions (8 special forms + 38 builtins + 41 stdlib)
+- **81 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help, concurrency)
+- **50 standard library functions** in pure Lisp organized into 6 modules (core, math, string, test, http, concurrency)
+- **Complete help system** with markdown documentation for all 139 functions (8 special forms + 81 builtins + 50 stdlib)
 - **Go-style channels** for concurrent programming with buffered/unbuffered channels
 - **Markdown-rendered help** with syntax highlighting via termimad
 
@@ -26,7 +26,7 @@ cargo run --release script.lisp  # Execute a script file
 
 ### Quality Assurance
 ```bash
-make test        # Run all 237 tests
+make test        # Run all 213 tests
 make fmt         # Format code with rustfmt
 make clippy      # Lint with clippy (0 warnings)
 make all         # Full pipeline: clean → fmt → clippy → test → build → release
@@ -113,23 +113,18 @@ Go-style **channels** for thread-safe message passing:
 (channel-send ch (list 1 2 3))
 ```
 
-**V1 Limitations:**
-- No `spawn` primitive yet (requires Arc-based environments - planned for V2)
-- Channels work within single-threaded context for V1
-- Future versions will add goroutine-style concurrency
-
 **Implementation Notes:**
 - Channel value contains Arc<Sender> and Arc<Receiver> for thread-safety
 - Uses crossbeam-channel for MPMC (multi-producer, multi-consumer) support
-- When spawn is added, channels will enable true concurrent programming
+- Works with `spawn` and `spawn-link` for true concurrent programming
 
 ### Help System (src/help.rs)
-**Thread-local registry** with markdown documentation for 87 total functions:
-- **38 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+**Thread-local registry** with markdown documentation for 139 total functions:
+- **81 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
   - New additions: `channel?`, `make-channel`, `channel-send`, `channel-recv`, `channel-close` (concurrency primitives)
   - Previous additions: `map?`, `keyword?` (type predicates), `http-request` (flexible HTTP), `file-stat` (file metadata)
 - **8 special forms**: Registered in `eval.rs` via `register_special_forms_part1()` and `register_special_forms_part2()`
-- **41 stdlib functions**: ;;; comment documentation in 5 focused modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
+- **50 stdlib functions**: ;;; comment documentation in 6 modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
 
 **When adding new built-ins:**
 1. Create function in appropriate `src/builtins/*.rs` category module
@@ -143,7 +138,7 @@ Go-style **channels** for thread-safe message passing:
 - Users access via `(help)` for quick reference or `(help 'function-name)` for details
 
 ### Standard Library (src/stdlib/lisp/)
-The standard library has been reorganized into 5 focused modules, loaded at startup (unless `--no-stdlib` is used):
+The standard library has been reorganized into 6 modules, loaded at startup (unless `--no-stdlib` is used):
 
 **Core Functions (core.lisp)**:
 - **Higher-order** (5): `map`, `filter`, `reduce`, `compose`, `partial`
@@ -170,6 +165,10 @@ The standard library has been reorganized into 5 focused modules, loaded at star
 **HTTP Utilities (http.lisp)**:
 - **Helpers** (3): `http:check-status`, `http:body`, `http:status`
 - Build on new `http-request` builtin for flexible HTTP operations
+
+**Concurrency Utilities (concurrency.lisp)**:
+- **Higher-level patterns**: Channel-based concurrency helpers and utilities
+- Build on `spawn`, `spawn-link`, and channel builtins for concurrent programming
 
 Each function has ;;; comment documentation with Parameters, Returns, Time Complexity, Examples, and Notes sections.
 
@@ -202,12 +201,14 @@ The macro registry is separate from the environment. When extending macro featur
 
 ## Testing Strategy
 
-The test suite has **237 tests** organized across 6 test suites:
-- **Unit tests** (88): Parser, environment, error handling
-- **Integration tests** (110): Language features, closures, TCO, macros
+The test suite has **213 tests** organized across 7 test suites:
+- **Unit tests** (90): Parser, environment, error handling
+- **Integration tests** (120): Language features, closures, TCO, macros
+- **Concurrency tests** (29): Concurrent execution, channels, spawn
 - **Stdlib tests** (17): Standard library functions
 - **Sandbox tests** (1): I/O security and sandboxing
 - **Builtin tests** (21): Individual builtin functions
+- **String tests** (25): String manipulation and operations
 
 **Test execution**:
 - `make test` runs all suites
@@ -295,7 +296,7 @@ builtins/
 ├── lists.rs            # cons, car, cdr, list, length, empty?
 ├── console.rs          # print, println
 ├── filesystem.rs       # read-file, write-file, file-exists?, file-size, list-files
-├── network.rs          # http-get, http-post
+├── network.rs          # http-request
 ├── errors.rs           # error, error?, error-msg
 └── help.rs             # help, doc
 ```
@@ -327,10 +328,10 @@ Each module has:
 ## Documentation System (Recently Implemented)
 
 ### Complete Help Coverage
-The interpreter has comprehensive markdown documentation for 87 functions:
+The interpreter has comprehensive markdown documentation for 139 functions:
 - **8 Special Forms**: define, lambda, if, begin, let, quote, quasiquote, defmacro (in eval.rs)
-- **38 Built-in Functions**: Across 11 categories in src/builtins/ (including concurrency)
-- **41 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
+- **81 Built-in Functions**: Across 11 categories in src/builtins/ (including concurrency)
+- **50 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
 
 ### Help Entry Format
 Each help entry contains:

@@ -28,7 +28,6 @@ impl Environment {
     }
 
     /// Creates a new child environment with a parent
-    #[allow(dead_code)]
     pub fn with_parent(parent: Arc<Environment>) -> Arc<Self> {
         Arc::new(Environment {
             bindings: HashMap::new(),
@@ -64,7 +63,6 @@ impl Environment {
 
     /// Updates an existing binding (for later use with set!)
     /// Note: This needs to return a new environment in V2
-    #[allow(dead_code)]
     pub fn set(&self, name: &str, value: Value) -> Result<Arc<Environment>, EvalError> {
         // Check if it exists in this scope
         if self.bindings.contains_key(name) {

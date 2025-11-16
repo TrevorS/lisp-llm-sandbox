@@ -17,7 +17,7 @@
 ;;;
 ;;; **Examples:**
 ;;; - (parallel-map (lambda (x) (* x 2)) '(1 2 3)) => (2 4 6)
-;;; - (parallel-map (lambda (url) (http-get url)) urls) ; Parallel API calls
+;;; - (parallel-map (lambda (url) (http-request url {:method "GET"})) urls) ; Parallel API calls
 ;;; - (parallel-map read-file file-paths) ; Parallel file reads
 ;;;
 ;;; **Notes:**
@@ -44,7 +44,7 @@
 ;;; **Examples:**
 ;;; - (parallel-map-link (lambda (x) (/ 10 x)) '(1 2 0))
 ;;;   => ({:ok 10} {:ok 5} {:error "Division by zero"})
-;;; - (parallel-map-link http-get urls) ; Robust parallel API calls
+;;; - (parallel-map-link (lambda (url) (http-request url {:method "GET"})) urls) ; Robust parallel API calls
 ;;;
 ;;; **Notes:**
 ;;; - Returns maps with :ok or :error keys
@@ -138,8 +138,8 @@
 ;;; **Examples:**
 ;;; - (parallel-pipeline
 ;;;     (list
-;;;       (lambda () (http-get "https://api.example.com/users"))
-;;;       (lambda () (http-get "https://api.example.com/posts"))
+;;;       (lambda () (http-request "https://api.example.com/users" {:method "GET"}))
+;;;       (lambda () (http-request "https://api.example.com/posts" {:method "GET"}))
 ;;;       (lambda () (read-file "config.json"))))
 ;;;   ; Execute independent tasks concurrently
 ;;;

@@ -22,7 +22,7 @@
 //! - **[lists]** (6): cons, car, cdr, list, length, empty? - List manipulation
 //! - **[console]** (2): print, println - Output operations
 //! - **[filesystem]** (5): read-file, write-file, file-exists?, file-size, list-files - File I/O
-//! - **[network]** (2): http-get, http-post - Network requests
+//! - **[network]** (1): http-request - Network requests
 //! - **[errors]** (3): error, error?, error-msg - Error handling
 //! - **[strings]** (17): string-split, string-join, string-append, substring, string-trim, string-upper, string-lower, string-replace, string-contains?, string-starts-with?, string-ends-with?, string-empty?, string-length, string->number, number->string, string->list, list->string - String manipulation
 //! - **[testing]** (6): assert, assert-equal, assert-error, register-test, run-all-tests, clear-tests - Testing and assertions

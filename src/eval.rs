@@ -21,7 +21,6 @@ pub fn set_global_env(env: Arc<Environment>) {
 }
 
 /// Get the current global environment
-#[allow(dead_code)]
 pub fn get_global_env() -> Option<Arc<Environment>> {
     GLOBAL_ENV.with(|global| global.read().unwrap().clone())
 }
@@ -766,7 +765,7 @@ pub fn register_special_forms_part1() {
 }
 
 /// Register help documentation for special forms (Part 2)
-/// Documents: let, quote, quasiquote, defmacro
+/// Documents: let, letrec, quote, quasiquote, defmacro
 pub fn register_special_forms_part2() {
     crate::help::register_help(crate::help::HelpEntry {
         name: "let".to_string(),
@@ -779,6 +778,44 @@ pub fn register_special_forms_part2() {
             "(define (quadratic a b c x) (let ((delta (- (* b b) (* 4 a c)))) (/ delta 2))) => quadratic".to_string(),
         ],
         related: vec!["lambda".to_string(), "define".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "letrec".to_string(),
+        signature: "(letrec ((var1 val1) (var2 val2) ...) body)".to_string(),
+        description: r#"Define mutually recursive local bindings.
+
+Similar to `let`, but allows bindings to refer to each other recursively.
+This enables defining local recursive functions and mutually recursive definitions.
+
+**Parameters:**
+- bindings: List of (variable value) pairs, where values can reference any variable in the binding list
+- body: Expression evaluated with all bindings in scope
+
+**Returns:** Result of evaluating body
+
+**Examples:**
+```lisp
+;; Local recursive function
+(letrec ((factorial (lambda (n)
+                      (if (<= n 1) 1 (* n (factorial (- n 1)))))))
+  (factorial 5))  ; => 120
+
+;; Mutually recursive functions
+(letrec ((even? (lambda (n) (if (= n 0) #t (odd? (- n 1)))))
+         (odd? (lambda (n) (if (= n 0) #f (even? (- n 1))))))
+  (even? 10))  ; => #t
+```
+
+**Notes:**
+- Unlike `let`, all bindings are available to all value expressions
+- Essential for defining local recursive and mutually recursive functions
+- Bindings are evaluated in an environment where all variables are already defined"#.to_string(),
+        examples: vec![
+            "(letrec ((fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5))".to_string(),
+        ],
+        related: vec!["let".to_string(), "define".to_string(), "lambda".to_string()],
         category: "Special forms".to_string(),
     });
 

@@ -34,7 +34,7 @@ use super::SANDBOX;
 ///
 /// # See Also
 ///
-/// http-get, http-post
+/// http:body, http:status, http:check-status (stdlib http helpers)
 pub fn http_request(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::arity_error(

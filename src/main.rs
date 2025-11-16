@@ -10,7 +10,6 @@ mod parser;
 mod sandbox;
 mod stdlib;
 mod stdlib_registry;
-mod tools;
 mod value;
 
 use builtins::{register_builtins, set_sandbox_storage};
@@ -412,9 +411,17 @@ fn find_expr_end(input: &str) -> Result<usize, String> {
         // S-expression - find matching closing paren
         let mut depth = 0;
         let mut in_string = false;
+        let mut escape_next = false;
 
         while i < chars.len() {
+            if escape_next {
+                escape_next = false;
+                i += 1;
+                continue;
+            }
+
             match chars[i] {
+                '\\' if in_string => escape_next = true,
                 '"' => in_string = !in_string,
                 '(' if !in_string => depth += 1,
                 ')' if !in_string => {

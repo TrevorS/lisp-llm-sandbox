@@ -134,9 +134,9 @@
 
   (define sources
     (list
-      (lambda () (http-get "https://jsonplaceholder.typicode.com/users/1"))
-      (lambda () (http-get "https://jsonplaceholder.typicode.com/users/2"))
-      (lambda () (http-get "https://jsonplaceholder.typicode.com/users/3"))))
+      (lambda () (http-request "https://jsonplaceholder.typicode.com/users/1" {:method "GET"}))
+      (lambda () (http-request "https://jsonplaceholder.typicode.com/users/2" {:method "GET"}))
+      (lambda () (http-request "https://jsonplaceholder.typicode.com/users/3" {:method "GET"}))))
 
   (define transformer
     (lambda (data)
@@ -224,7 +224,7 @@
 ;; Example: bulk user lookup
 ;; (define user-ids '(1 2 3 4 5 6 7 8 9 10))
 ;; (batch-api-calls user-ids
-;;   (lambda (id) (http-get (string-append "https://api.example.com/users/" (number->string id))))
+;;   (lambda (id) (http-request (string-append "https://api.example.com/users/" (number->string id)) {:method "GET"}))
 ;;   3)
 
 ;; ============================================================================
