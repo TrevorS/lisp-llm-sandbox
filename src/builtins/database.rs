@@ -16,6 +16,21 @@
 //!
 //! The `:handle` field contains a unique connection ID used to look up
 //! the actual database connection in the thread-local registry.
+//!
+//! ## Thread Safety
+//!
+//! **IMPORTANT**: Connections are stored in thread-local storage and cannot be
+//! shared between threads. Each connection handle is only valid in the thread
+//! where it was created. Attempting to use a connection from a different thread
+//! will fail with "Invalid connection handle" error.
+//!
+//! For single-threaded REPL and script usage, this is not a concern.
+//!
+//! ## Resource Limits
+//!
+//! The maximum number of concurrent connections per thread is 100. This prevents
+//! resource exhaustion from unclosed connections. Always call `db:close` when done
+//! with a connection to free resources.
 
 use crate::error::{
     EvalError, ARITY_ONE, ARITY_TWO_OR_THREE, ERR_DB_BACKEND_NOT_STRING, ERR_DB_HANDLE_NOT_NUMBER,
@@ -35,6 +50,9 @@ use super::SANDBOX;
 // Connection Registry (Thread-Local)
 // ============================================================================
 
+/// Maximum number of concurrent database connections allowed per thread
+const MAX_CONNECTIONS: usize = 100;
+
 thread_local! {
     static CONNECTIONS: RefCell<HashMap<u64, Connection>> = RefCell::new(HashMap::new());
 }
@@ -47,12 +65,22 @@ fn next_handle() -> u64 {
 }
 
 /// Store a connection and return its handle
-fn store_connection(conn: Connection) -> u64 {
-    let handle = next_handle();
+fn store_connection(conn: Connection) -> Result<u64, EvalError> {
     CONNECTIONS.with(|conns| {
-        conns.borrow_mut().insert(handle, conn);
-    });
-    handle
+        let mut map = conns.borrow_mut();
+        if map.len() >= MAX_CONNECTIONS {
+            return Err(EvalError::runtime_error(
+                "database",
+                format!(
+                    "Connection limit ({}) exceeded. Close unused connections with db:close",
+                    MAX_CONNECTIONS
+                ),
+            ));
+        }
+        let handle = next_handle();
+        map.insert(handle, conn);
+        Ok(handle)
+    })
 }
 
 /// Remove a connection from the registry
@@ -78,6 +106,45 @@ where
             .ok_or_else(|| EvalError::runtime_error("database", format!("Invalid connection handle: {}", handle)))?;
         f(conn)
     })
+}
+
+/// Extract connection handle from a connection map with validation
+fn extract_handle(conn_val: &Value, function: &str) -> Result<u64, EvalError> {
+    let conn_map = match conn_val {
+        Value::Map(m) => m,
+        _ => return Err(EvalError::type_error(function, "Map", conn_val, 0)),
+    };
+
+    let handle_val = conn_map
+        .get("handle")
+        .ok_or_else(|| EvalError::runtime_error(function, ERR_DB_MISSING_HANDLE))?;
+
+    match handle_val {
+        Value::Number(n) => {
+            // Validate handle is a positive integer
+            if *n < 0.0 || *n > u64::MAX as f64 || n.fract() != 0.0 {
+                return Err(EvalError::runtime_error(
+                    function,
+                    format!("Invalid handle: must be positive integer, got {}", n),
+                ));
+            }
+            Ok(*n as u64)
+        }
+        _ => Err(EvalError::runtime_error(function, ERR_DB_HANDLE_NOT_NUMBER)),
+    }
+}
+
+/// Extract optional parameter list from arguments
+fn extract_params(args: &[Value], function: &str, arg_index: usize) -> Result<Vec<Value>, EvalError> {
+    if args.len() <= arg_index {
+        return Ok(Vec::new());
+    }
+
+    match &args[arg_index] {
+        Value::List(items) => Ok(items.clone()),
+        Value::Nil => Ok(Vec::new()),
+        val => Err(EvalError::type_error(function, "List", val, arg_index)),
+    }
 }
 
 // ============================================================================
@@ -176,7 +243,7 @@ pub fn db_open(args: &[Value]) -> Result<Value, EvalError> {
                     .map_err(|e| EvalError::runtime_error("db:open", format!("Failed to open database: {}", e)))?;
 
                 // Store connection and get handle
-                let handle = store_connection(conn);
+                let handle = store_connection(conn)?;
 
                 // Build result map with handle added
                 let mut result = spec.clone();
@@ -211,22 +278,7 @@ pub fn db_close(args: &[Value]) -> Result<Value, EvalError> {
         return Err(EvalError::arity_error("db:close", ARITY_ONE, args.len()));
     }
 
-    let conn_map = match &args[0] {
-        Value::Map(m) => m,
-        _ => return Err(EvalError::type_error("db:close", "Map", &args[0], 0)),
-    };
-
-    // Extract handle
-    let handle_val = conn_map
-        .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:close", ERR_DB_MISSING_HANDLE))?;
-
-    let handle = match handle_val {
-        Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:close", ERR_DB_HANDLE_NOT_NUMBER)),
-    };
-
-    // Remove connection from registry
+    let handle = extract_handle(&args[0], "db:close")?;
     remove_connection(handle)?;
 
     Ok(Value::Bool(true))
@@ -259,37 +311,14 @@ pub fn db_exec(args: &[Value]) -> Result<Value, EvalError> {
         return Err(EvalError::arity_error("db:exec", ARITY_TWO_OR_THREE, args.len()));
     }
 
-    // Extract connection handle
-    let conn_map = match &args[0] {
-        Value::Map(m) => m,
-        _ => return Err(EvalError::type_error("db:exec", "Map", &args[0], 0)),
-    };
+    let handle = extract_handle(&args[0], "db:exec")?;
 
-    let handle_val = conn_map
-        .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:exec", ERR_DB_MISSING_HANDLE))?;
-
-    let handle = match handle_val {
-        Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:exec", ERR_DB_HANDLE_NOT_NUMBER)),
-    };
-
-    // Extract SQL
     let sql = match &args[1] {
         Value::String(s) => s,
         _ => return Err(EvalError::type_error("db:exec", "String", &args[1], 1)),
     };
 
-    // Extract optional parameters
-    let params: Vec<Value> = if args.len() == 3 {
-        match &args[2] {
-            Value::List(items) => items.clone(),
-            Value::Nil => Vec::new(),
-            _ => return Err(EvalError::type_error("db:exec", "List", &args[2], 2)),
-        }
-    } else {
-        Vec::new()
-    };
+    let params = extract_params(args, "db:exec", 2)?;
 
     // Execute with connection
     with_connection(handle, |conn| {
@@ -338,37 +367,14 @@ pub fn db_query(args: &[Value]) -> Result<Value, EvalError> {
         return Err(EvalError::arity_error("db:query", ARITY_TWO_OR_THREE, args.len()));
     }
 
-    // Extract connection handle
-    let conn_map = match &args[0] {
-        Value::Map(m) => m,
-        _ => return Err(EvalError::type_error("db:query", "Map", &args[0], 0)),
-    };
+    let handle = extract_handle(&args[0], "db:query")?;
 
-    let handle_val = conn_map
-        .get("handle")
-        .ok_or_else(|| EvalError::runtime_error("db:query", ERR_DB_MISSING_HANDLE))?;
-
-    let handle = match handle_val {
-        Value::Number(n) => *n as u64,
-        _ => return Err(EvalError::runtime_error("db:query", ERR_DB_HANDLE_NOT_NUMBER)),
-    };
-
-    // Extract SQL
     let sql = match &args[1] {
         Value::String(s) => s,
         _ => return Err(EvalError::type_error("db:query", "String", &args[1], 1)),
     };
 
-    // Extract optional parameters
-    let params: Vec<Value> = if args.len() == 3 {
-        match &args[2] {
-            Value::List(items) => items.clone(),
-            Value::Nil => Vec::new(),
-            _ => return Err(EvalError::type_error("db:query", "List", &args[2], 2)),
-        }
-    } else {
-        Vec::new()
-    };
+    let params = extract_params(args, "db:query", 2)?;
 
     // Execute with connection
     with_connection(handle, |conn| {

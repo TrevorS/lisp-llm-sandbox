@@ -103,23 +103,27 @@
 - (db:update conn \"users\" {:age 31} {:id 1})
 - (db:update conn \"products\" {:price 12.99} {:name \"Widget\"})
 
-**Notes:** All WHERE conditions are AND-ed together."
+**Notes:** All WHERE conditions are AND-ed together. Empty where-map is rejected to prevent updating all rows."
   (begin
-    (define set-keys (map-keys data))
-    (define set-names (map keyword->string set-keys))
-    (define set-values (map (lambda (k) (map-get data k)) set-keys))
-    (define set-clauses (map (lambda (name) (string-append name " = ?")) set-names))
-    (define set-str (string-join set-clauses ", "))
+    ;; Safety check: prevent accidental update of all rows
+    (if (= (map-size where-map) 0)
+        (error "db:update: Empty where-map would update ALL rows. Use db:exec for UPDATE without WHERE if intentional.")
+        (begin
+          (define set-keys (map-keys data))
+          (define set-names (map keyword->string set-keys))
+          (define set-values (map (lambda (k) (map-get data k)) set-keys))
+          (define set-clauses (map (lambda (name) (string-append name " = ?")) set-names))
+          (define set-str (string-join set-clauses ", "))
 
-    (define where-keys (map-keys where-map))
-    (define where-names (map keyword->string where-keys))
-    (define where-values (map (lambda (k) (map-get where-map k)) where-keys))
-    (define where-clauses (map (lambda (name) (string-append name " = ?")) where-names))
-    (define where-str (string-join where-clauses " AND "))
+          (define where-keys (map-keys where-map))
+          (define where-names (map keyword->string where-keys))
+          (define where-values (map (lambda (k) (map-get where-map k)) where-keys))
+          (define where-clauses (map (lambda (name) (string-append name " = ?")) where-names))
+          (define where-str (string-join where-clauses " AND "))
 
-    (define all-values (append set-values where-values))
-    (define sql (string-append "UPDATE " table " SET " set-str " WHERE " where-str))
-    (db:exec conn sql all-values)))
+          (define all-values (append set-values where-values))
+          (define sql (string-append "UPDATE " table " SET " set-str " WHERE " where-str))
+          (db:exec conn sql all-values)))))
 
 ;;; Delete rows from a table
 (define (db:delete conn table where-map)
@@ -138,15 +142,19 @@
 - (db:delete conn \"users\" {:id 1})
 - (db:delete conn \"products\" {:price 0})
 
-**Notes:** All WHERE conditions are AND-ed together. Be careful with empty where-map!"
+**Notes:** All WHERE conditions are AND-ed together. Empty where-map is rejected to prevent deleting all rows."
   (begin
-    (define keys (map-keys where-map))
-    (define col-names (map keyword->string keys))
-    (define values (map (lambda (k) (map-get where-map k)) keys))
-    (define clauses (map (lambda (name) (string-append name " = ?")) col-names))
-    (define where-str (string-join clauses " AND "))
-    (define sql (string-append "DELETE FROM " table " WHERE " where-str))
-    (db:exec conn sql values)))
+    ;; Safety check: prevent accidental deletion of all rows
+    (if (= (map-size where-map) 0)
+        (error "db:delete: Empty where-map would delete ALL rows. Use db:exec for DELETE without WHERE if intentional.")
+        (begin
+          (define keys (map-keys where-map))
+          (define col-names (map keyword->string keys))
+          (define values (map (lambda (k) (map-get where-map k)) keys))
+          (define clauses (map (lambda (name) (string-append name " = ?")) col-names))
+          (define where-str (string-join clauses " AND "))
+          (define sql (string-append "DELETE FROM " table " WHERE " where-str))
+          (db:exec conn sql values)))))
 
 ;;; Find rows in a table
 (define (db:find conn table columns where-map)
@@ -220,4 +228,61 @@
     (define first-row (db:first result))
     (if (nil? first-row)
         0
-        (map-get first-row :count))))
+        (map-get first-row :count)))
+
+;;; Transaction management
+
+(define (db:begin conn)
+  "Begin a database transaction.
+
+**Parameters:**
+- conn: Database connection map
+
+**Returns:** Number of rows affected (typically 0)
+
+**Time Complexity:** O(1)
+
+**Examples:**
+- (db:begin conn)
+
+**Notes:** Must be followed by db:commit or db:rollback. Transactions provide atomicity -
+either all operations succeed or all are rolled back."
+  (db:exec conn "BEGIN TRANSACTION" '()))
+
+(define (db:commit conn)
+  "Commit the current transaction.
+
+**Parameters:**
+- conn: Database connection map
+
+**Returns:** Number of rows affected (typically 0)
+
+**Time Complexity:** O(1)
+
+**Examples:**
+- (db:begin conn)
+- (db:insert conn \"users\" {:id 1 :name \"Alice\"})
+- (db:commit conn)
+
+**Notes:** Finalizes all changes made since db:begin. If commit fails, changes are rolled back."
+  (db:exec conn "COMMIT" '()))
+
+(define (db:rollback conn)
+  "Roll back the current transaction.
+
+**Parameters:**
+- conn: Database connection map
+
+**Returns:** Number of rows affected (typically 0)
+
+**Time Complexity:** O(1)
+
+**Examples:**
+- (db:begin conn)
+- (db:insert conn \"users\" {:id 1 :name \"Alice\"})
+- (db:rollback conn)  ; Alice was not inserted
+
+**Notes:** Discards all changes made since db:begin. Use when an error occurs or you want to abort."
+  (db:exec conn "ROLLBACK" '()))
+
+)
