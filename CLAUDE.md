@@ -7,9 +7,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
 - **213 tests** covering all major features (90 unit + 120 integration + 29 concurrency + 17 stdlib + 1 sandbox + 21 builtin + 25 string tests)
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **81 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help, concurrency)
-- **50 standard library functions** in pure Lisp organized into 6 modules (core, math, string, test, http, concurrency)
-- **Complete help system** with markdown documentation for all 139 functions (8 special forms + 81 builtins + 50 stdlib)
+- **82 built-in functions** organized into 14 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, strings, maps, testing, concurrency, help)
+- **53 standard library functions** in pure Lisp organized into 6 modules (core, math, string, test, http, concurrency)
+- **Complete help system** with markdown documentation for all 143 functions (8 special forms + 82 builtins + 53 stdlib)
 - **Go-style channels** for concurrent programming with buffered/unbuffered channels
 - **Markdown-rendered help** with syntax highlighting via termimad
 
@@ -119,12 +119,12 @@ Go-style **channels** for thread-safe message passing:
 - Works with `spawn` and `spawn-link` for true concurrent programming
 
 ### Help System (src/help.rs)
-**Thread-local registry** with markdown documentation for 139 total functions:
-- **81 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
+**Thread-local registry** with markdown documentation for 143 total functions:
+- **82 built-in functions**: Each in its own module under `src/builtins/` with category-specific help
   - New additions: `channel?`, `make-channel`, `channel-send`, `channel-recv`, `channel-close` (concurrency primitives)
   - Previous additions: `map?`, `keyword?` (type predicates), `http-request` (flexible HTTP), `file-stat` (file metadata)
 - **8 special forms**: Registered in `eval.rs` via `register_special_forms_part1()` and `register_special_forms_part2()`
-- **50 stdlib functions**: ;;; comment documentation in 6 modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
+- **53 stdlib functions**: ;;; comment documentation in 6 modules under `src/stdlib/lisp/` with parameters, returns, complexity analysis, examples
 
 **When adding new built-ins:**
 1. Create function in appropriate `src/builtins/*.rs` category module
@@ -328,10 +328,10 @@ Each module has:
 ## Documentation System (Recently Implemented)
 
 ### Complete Help Coverage
-The interpreter has comprehensive markdown documentation for 139 functions:
+The interpreter has comprehensive markdown documentation for 143 functions:
 - **8 Special Forms**: define, lambda, if, begin, let, quote, quasiquote, defmacro (in eval.rs)
-- **81 Built-in Functions**: Across 11 categories in src/builtins/ (including concurrency)
-- **50 Stdlib Functions**: Pure Lisp functions in src/stdlib.lisp
+- **82 Built-in Functions**: Across 14 categories in src/builtins/ (including concurrency, strings, maps, testing)
+- **53 Stdlib Functions**: Pure Lisp functions across 6 modules in src/stdlib/lisp/
 
 ### Help Entry Format
 Each help entry contains:

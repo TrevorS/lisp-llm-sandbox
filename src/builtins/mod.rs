@@ -1,6 +1,6 @@
 //! # Built-in Functions Module
 //!
-//! Core built-in functions for the Lisp interpreter, organized into 12 categories with 55 total functions.
+//! Core built-in functions for the Lisp interpreter, organized into 14 categories with 82 total functions.
 //!
 //! ## Naming Convention
 //!

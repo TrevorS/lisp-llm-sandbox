@@ -17,12 +17,12 @@ Quick Start Examples:
 LLM-Optimized Features:
   • Maps with keywords: {:name "Alice" :age 30}
   • Structured I/O returns maps with metadata
-  • 50 stdlib functions auto-loaded (map, filter, reduce, etc.)
+  • 53 stdlib functions auto-loaded (map, filter, reduce, etc.)
   • Macros and compile-time code transformation
   • Tail-call optimization for deep recursion
 
 Available Commands:
-  (help)                    - Show all 127+ functions by category
+  (help)                    - Show all 143 functions by category
   (help 'function-name)     - Detailed help for a specific function
   (quit) or (exit)          - Exit the REPL
 

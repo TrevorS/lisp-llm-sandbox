@@ -5,7 +5,7 @@
 //! - `help`: Show help for a function (displays markdown documentation)
 //! - `doc`: Extract docstring from a user-defined function
 //!
-//! The help system includes all 32 built-in functions and 8 special forms.
+//! The help system includes all 82 built-in functions, 8 special forms, and 53 stdlib functions.
 //! User-defined functions can include docstrings as the first element of the body.
 
 use crate::env::Environment;

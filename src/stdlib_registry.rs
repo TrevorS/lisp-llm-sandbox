@@ -30,6 +30,8 @@ pub fn register_stdlib_functions() {
     register_test_functions();
     // HTTP module functions
     register_http_functions();
+    // Concurrency module functions
+    register_concurrency_functions();
 }
 
 fn register_core_functions() {
@@ -47,6 +49,12 @@ fn register_core_functions() {
         ("take", "(take n lst)", "Take first n elements of a list.\n\n**Parameters:**\n- n: Number of elements\n- lst: Input list\n\n**Returns:** New list with first n elements"),
         ("drop", "(drop n lst)", "Drop first n elements of a list.\n\n**Parameters:**\n- n: Number of elements to skip\n- lst: Input list\n\n**Returns:** New list without first n elements"),
         ("zip", "(zip lst1 lst2)", "Combine two lists into pairs.\n\n**Parameters:**\n- lst1: First list\n- lst2: Second list\n\n**Returns:** List of pairs [elem1 elem2]\n\n**Time Complexity:** O(n) where n is length of shorter list"),
+        ("map:query", "(map:query m key default)", "Get value from map with default.\n\n**Parameters:**\n- m: Map to query\n- key: Keyword key\n- default: Default value if key not found"),
+        ("map:select", "(map:select m keys)", "Select subset of map by keys.\n\n**Parameters:**\n- m: Source map\n- keys: List of keywords to select"),
+        ("map:update", "(map:update m key f)", "Update map value using function.\n\n**Parameters:**\n- m: Map to update\n- key: Keyword key\n- f: Function to apply to current value"),
+        ("map:from-entries", "(map:from-entries entries)", "Build map from list of key-value pairs.\n\n**Parameters:**\n- entries: List of [key value] pairs"),
+        ("map:filter", "(map:filter pred m)", "Filter map entries by predicate.\n\n**Parameters:**\n- pred: Predicate function taking [key value] pair\n- m: Map to filter"),
+        ("map:map-values", "(map:map-values f m)", "Transform all values in map.\n\n**Parameters:**\n- f: Function to apply to each value\n- m: Map to transform"),
     ];
 
     for (name, sig, desc) in functions {
@@ -72,7 +80,11 @@ fn register_math_functions() {
         ("odd?", "(odd? n)", "Check if number is odd.\n\n**Parameters:**\n- n: Number\n\n**Returns:** true if odd, false otherwise\n\n**Time Complexity:** O(1)"),
         ("sum", "(sum lst)", "Sum all numbers in a list.\n\n**Parameters:**\n- lst: List of numbers\n\n**Returns:** Sum of all elements\n\n**Time Complexity:** O(n)"),
         ("product", "(product lst)", "Multiply all numbers in a list.\n\n**Parameters:**\n- lst: List of numbers\n\n**Returns:** Product of all elements\n\n**Time Complexity:** O(n)"),
-        ("factorial", "(factorial n)", "Compute factorial of n.\n\n**Parameters:**\n- n: Non-negative integer\n\n**Returns:** n!\n\n**Time Complexity:** O(n)"),
+        ("factorial", "(factorial n)", "Compute factorial of n (non-tail-recursive).\n\n**Parameters:**\n- n: Non-negative integer\n\n**Returns:** n!\n\n**Time Complexity:** O(n)\n\n**Note:** Not tail-recursive, may stack overflow for large n"),
+        ("all", "(all pred lst)", "Check if all elements satisfy predicate.\n\n**Parameters:**\n- pred: Predicate function\n- lst: List to check"),
+        ("any", "(any pred lst)", "Check if any element satisfies predicate.\n\n**Parameters:**\n- pred: Predicate function\n- lst: List to check"),
+        ("count", "(count pred lst)", "Count elements satisfying predicate.\n\n**Parameters:**\n- pred: Predicate function\n- lst: List to check"),
+        ("range", "(range n)", "Generate list of numbers from 0 to n-1.\n\n**Parameters:**\n- n: Upper bound (exclusive)"),
     ];
 
     for (name, sig, desc) in functions {
@@ -89,16 +101,13 @@ fn register_math_functions() {
 
 fn register_string_functions() {
     let functions = vec![
-        ("upcase", "(upcase s)", "Convert string to uppercase.\n\n**Parameters:**\n- s: String\n\n**Returns:** Uppercase version\n\n**Time Complexity:** O(n) where n is string length"),
-        ("downcase", "(downcase s)", "Convert string to lowercase.\n\n**Parameters:**\n- s: String\n\n**Returns:** Lowercase version\n\n**Time Complexity:** O(n) where n is string length"),
-        ("trim", "(trim s)", "Remove leading and trailing whitespace.\n\n**Parameters:**\n- s: String\n\n**Returns:** Trimmed string\n\n**Time Complexity:** O(n) where n is string length"),
-        ("starts-with?", "(starts-with? s prefix)", "Check if string starts with prefix.\n\n**Parameters:**\n- s: String\n- prefix: Prefix to check\n\n**Returns:** true if starts with prefix\n\n**Time Complexity:** O(m) where m is prefix length"),
-        ("ends-with?", "(ends-with? s suffix)", "Check if string ends with suffix.\n\n**Parameters:**\n- s: String\n- suffix: Suffix to check\n\n**Returns:** true if ends with suffix\n\n**Time Complexity:** O(m) where m is suffix length"),
-        ("contains?", "(contains? s substring)", "Check if string contains substring.\n\n**Parameters:**\n- s: String\n- substring: Substring to find\n\n**Returns:** true if contains\n\n**Time Complexity:** O(n*m) where n is string length and m is substring length"),
-        ("split", "(split s delimiter)", "Split string by delimiter.\n\n**Parameters:**\n- s: String\n- delimiter: Split character or string\n\n**Returns:** List of string parts\n\n**Time Complexity:** O(n) where n is string length"),
-        ("join", "(join lst sep)", "Join list of strings with separator.\n\n**Parameters:**\n- lst: List of strings\n- sep: Separator string\n\n**Returns:** Joined string\n\n**Time Complexity:** O(n) where n is total characters"),
-        ("replace", "(replace s old new)", "Replace all occurrences of substring.\n\n**Parameters:**\n- s: String\n- old: Substring to replace\n- new: Replacement string\n\n**Returns:** New string with replacements\n\n**Time Complexity:** O(n*m) where n is string length"),
-        ("length", "(length s)", "Get string length.\n\n**Parameters:**\n- s: String\n\n**Returns:** Number of characters\n\n**Time Complexity:** O(1)"),
+        ("string-capitalize", "(string-capitalize s)", "Capitalize first character of string.\n\n**Parameters:**\n- s: String to capitalize\n\n**Returns:** String with first char uppercase\n\n**Time Complexity:** O(n)"),
+        ("string-concat", "(string-concat lst)", "Concatenate list of strings.\n\n**Parameters:**\n- lst: List of strings\n\n**Returns:** Single concatenated string\n\n**Time Complexity:** O(n)"),
+        ("string-reverse", "(string-reverse s)", "Reverse a string.\n\n**Parameters:**\n- s: String to reverse\n\n**Returns:** Reversed string\n\n**Time Complexity:** O(n)"),
+        ("string-repeat", "(string-repeat s n)", "Repeat string n times.\n\n**Parameters:**\n- s: String to repeat\n- n: Number of repetitions\n\n**Returns:** Concatenated result\n\n**Time Complexity:** O(n*m) where m is string length"),
+        ("string-words", "(string-words s)", "Split string into words by whitespace.\n\n**Parameters:**\n- s: String to split\n\n**Returns:** List of word strings\n\n**Time Complexity:** O(n)"),
+        ("string-lines", "(string-lines s)", "Split string into lines by newline.\n\n**Parameters:**\n- s: String to split\n\n**Returns:** List of line strings\n\n**Time Complexity:** O(n)"),
+        ("string-pad-left", "(string-pad-left s width char)", "Pad string on left to width.\n\n**Parameters:**\n- s: String to pad\n- width: Target width\n- char: Padding character\n\n**Returns:** Padded string"),
     ];
 
     for (name, sig, desc) in functions {
@@ -115,9 +124,8 @@ fn register_string_functions() {
 
 fn register_test_functions() {
     let functions = vec![
-        ("assert", "(assert condition)", "Assert that condition is true, fail with error if false.\n\n**Parameters:**\n- condition: Boolean expression\n\n**Returns:** true if assertion passes\n\n**Raises:** Error if condition is false\n\n**Time Complexity:** O(1)"),
-        ("assert-equal", "(assert-equal a b)", "Assert that two values are equal.\n\n**Parameters:**\n- a: First value\n- b: Second value\n\n**Returns:** true if equal\n\n**Raises:** Error if not equal\n\n**Time Complexity:** O(1)"),
-        ("assert-error", "(assert-error expr)", "Assert that expression raises an error.\n\n**Parameters:**\n- expr: Expression that should error\n\n**Returns:** true if error occurred\n\n**Time Complexity:** O(1)"),
+        ("print-test-summary", "(print-test-summary results)", "Print formatted test results from run-all-tests.\n\n**Parameters:**\n- results: Result map with :passed, :failed, :total, :tests\n\n**Returns:** nil (prints to console)"),
+        ("print-test-details", "(print-test-details tests)", "Print each test result with status.\n\n**Parameters:**\n- tests: List of test result maps with :name, :status, :message\n\n**Returns:** nil (prints to console)"),
     ];
 
     for (name, sig, desc) in functions {
@@ -134,8 +142,9 @@ fn register_test_functions() {
 
 fn register_http_functions() {
     let functions = vec![
-        ("http:parse-response", "(http:parse-response response-map)", "Parse HTTP response into structured format.\n\n**Parameters:**\n- response-map: Map with :status, :headers, :body\n\n**Returns:** Parsed response object\n\n**Time Complexity:** O(n) where n is response body size"),
-        ("http:build-query", "(http:build-query params)", "Build URL query string from parameter map.\n\n**Parameters:**\n- params: Map of query parameters\n\n**Returns:** URL-encoded query string\n\n**Time Complexity:** O(n) where n is number of parameters"),
+        ("http:check-status", "(http:check-status response)", "Check if HTTP response status is success (2xx).\n\n**Parameters:**\n- response: HTTP response map with :status\n\n**Returns:** true if 2xx, false otherwise"),
+        ("http:body", "(http:body response)", "Extract body from HTTP response.\n\n**Parameters:**\n- response: HTTP response map with :body\n\n**Returns:** Response body string"),
+        ("http:status", "(http:status response)", "Extract status code from HTTP response.\n\n**Parameters:**\n- response: HTTP response map with :status\n\n**Returns:** Status code number"),
     ];
 
     for (name, sig, desc) in functions {
@@ -146,6 +155,28 @@ fn register_http_functions() {
             examples: vec![],
             related: vec![],
             category: "Standard Library: HTTP".to_string(),
+        });
+    }
+}
+
+fn register_concurrency_functions() {
+    let functions = vec![
+        ("parallel-map", "(parallel-map f lst)", "Map function over list in parallel using spawn.\n\n**Parameters:**\n- f: Function to apply\n- lst: Input list\n\n**Returns:** List of results from parallel execution"),
+        ("parallel-map-link", "(parallel-map-link f lst)", "Map function over list in parallel using spawn-link.\n\n**Parameters:**\n- f: Function to apply\n- lst: Input list\n\n**Returns:** List of results, errors propagated"),
+        ("pmap", "(pmap f lst)", "Alias for parallel-map.\n\n**Parameters:**\n- f: Function to apply\n- lst: Input list"),
+        ("parallel-for-each", "(parallel-for-each f lst)", "Execute function on each element in parallel, discard results.\n\n**Parameters:**\n- f: Side-effect function\n- lst: Input list\n\n**Returns:** nil"),
+        ("fan-out", "(fan-out f inputs)", "Execute function on multiple inputs in parallel.\n\n**Parameters:**\n- f: Function to execute\n- inputs: List of input values"),
+        ("parallel-pipeline", "(parallel-pipeline stages input)", "Execute pipeline stages in parallel.\n\n**Parameters:**\n- stages: List of functions\n- input: Initial input value"),
+    ];
+
+    for (name, sig, desc) in functions {
+        crate::help::register_help(HelpEntry {
+            name: name.to_string(),
+            signature: sig.to_string(),
+            description: desc.to_string(),
+            examples: vec![],
+            related: vec![],
+            category: "Standard Library: Concurrency".to_string(),
         });
     }
 }

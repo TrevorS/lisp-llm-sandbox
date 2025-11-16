@@ -14,8 +14,8 @@
 ;;; - body: Single expression to execute (use begin for multiple)
 ;;;
 ;;; **Examples:**
-;;; - (define-test math-test (assert-equal (+ 2 2) 4))
-;;; - (define-test string-test (begin (assert-equal 1 1) (assert-equal 2 2)))
+;;; - (define-test "math-test" (assert-equal (+ 2 2) 4))
+;;; - (define-test "string-test" (begin (assert-equal 1 1) (assert-equal 2 2)))
 ;;;
 ;;; **Notes:** Macro expands to (register-test name (lambda () body))
 (defmacro define-test (name body)

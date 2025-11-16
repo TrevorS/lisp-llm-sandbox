@@ -197,7 +197,7 @@
 ;;; - Negative n: returns 1 (by definition, base case)
 ;;; - Large n: may cause stack overflow without TCO
 ;;;
-;;; **Notes:** Uses tail-call optimization for efficiency. Mathematical: 0! = 1, n! = n * (n-1)!
+;;; **Notes:** NOT tail-recursive due to multiplication after recursive call. May stack overflow for large n. Mathematical: 0! = 1, n! = n * (n-1)!
 (define (factorial n)
   (if (<= n 1)
       1
