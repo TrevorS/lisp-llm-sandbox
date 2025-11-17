@@ -25,7 +25,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - `unquote-splicing` (,@) - List splicing
 - `defmacro` - Macro definition
 
-### Built-in Functions (43 total, organized by category)
+### Built-in Functions (47 total, organized by category)
 
 **Arithmetic** (5): `+`, `-`, `*`, `/`, `%`
 
@@ -45,6 +45,8 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 
 **Network I/O** (2): `http-get`, `http-post`
 
+**Database I/O** (4): `db:open`, `db:close`, `db:exec`, `db:query`
+
 **Error Handling** (3): `error`, `error?`, `error-msg`
 
 **Help System** (2): `help`, `doc`
@@ -56,6 +58,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 - **Error Handling**: Catchable error values
 - **Interactive REPL**: Full readline support with history
 - **Sandboxed I/O**: Safe filesystem and network access with capability-based security
+- **SQLite Database**: Built-in database support with query builders and SQL injection protection
 - **First-Class Help System**: Built-in help for all functions, extensible to user code
 - **Function Docstrings**: Define functions with documentation: `(define (f x) "docs" body)`
 - **Structured Data**: Maps with keywords for LLM-friendly data structures
@@ -267,6 +270,45 @@ The interpreter has a first-class help system:
 
 ; Make HTTP POST request
 (http-post "https://api.example.com/data" "request body")  ; => response
+```
+
+### Database Operations (SQLite)
+```lisp
+; Connect to database
+(define conn (db:connect (sqlite:spec "users.db")))
+
+; Create table
+(db:execute conn "CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)" '())
+
+; Insert rows using query builder (maps to SQL)
+(db:insert conn "users" {:id 1 :name "Alice" :age 30})
+(db:insert conn "users" {:id 2 :name "Bob" :age 25})
+(db:insert conn "users" {:id 3 :name "Charlie" :age 30})
+; => 1 (rows affected)
+
+; Find rows with WHERE conditions
+(db:find conn "users" "*" {:age 30})
+; => ({:id 1 :name "Alice" :age 30} {:id 3 :name "Charlie" :age 30})
+
+; Update rows
+(db:update conn "users" {:age 31} {:name "Alice"})
+; => 1 (rows affected)
+
+; Count rows
+(db:count conn "users" {:age 30})
+; => 1 (Charlie remains age 30)
+
+; Delete rows
+(db:delete conn "users" {:id 2})
+; => 1 (rows affected)
+
+; Raw SQL queries (with parameterization for security)
+(db:query conn "SELECT name FROM users WHERE age > ?" '(25))
+; => ({:name "Alice"} {:name "Charlie"})
+
+; Always close connection to prevent resource leaks
+(db:close conn)
+; => #t
 ```
 
 ### Help System

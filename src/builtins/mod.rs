@@ -1,6 +1,6 @@
 //! # Built-in Functions Module
 //!
-//! Core built-in functions for the Lisp interpreter, organized into 12 categories with 55 total functions.
+//! Core built-in functions for the Lisp interpreter, organized into 13 categories with 59 total functions.
 //!
 //! ## Naming Convention
 //!
@@ -21,6 +21,7 @@
 //! - **[types]** (6): number?, string?, list?, nil?, symbol?, bool? - Type predicates
 //! - **[lists]** (6): cons, car, cdr, list, length, empty? - List manipulation
 //! - **[console]** (2): print, println - Output operations
+//! - **[database]** (4): db:open, db:close, db:exec, db:query - Database operations
 //! - **[filesystem]** (5): read-file, write-file, file-exists?, file-size, list-files - File I/O
 //! - **[network]** (2): http-get, http-post - Network requests
 //! - **[errors]** (3): error, error?, error-msg - Error handling
@@ -79,6 +80,7 @@ pub fn set_sandbox_storage(sandbox: Sandbox) {
 pub mod arithmetic;
 pub mod comparison;
 pub mod console;
+pub mod database;
 pub mod errors;
 pub mod filesystem;
 #[path = "help.rs"]

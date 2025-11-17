@@ -83,6 +83,22 @@ impl Sandbox {
         })
     }
 
+    /// Get full filesystem path for a relative path
+    /// Used for database connections which need absolute paths
+    pub fn get_full_path(&self, user_path: &str) -> Result<std::path::PathBuf, SandboxError> {
+        if self.fs_config.allowed_paths.is_empty() {
+            return Err(SandboxError::PathNotAllowed(
+                "No allowed paths configured".to_string(),
+            ));
+        }
+
+        // Join with first allowed path
+        let base_path = std::path::PathBuf::from(&self.fs_config.allowed_paths[0]);
+        let full_path = base_path.join(user_path);
+
+        Ok(full_path)
+    }
+
     // ========================================================================
     // Filesystem Operations
     // ========================================================================

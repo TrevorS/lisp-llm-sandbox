@@ -636,6 +636,34 @@ pub fn builtin_string_to_list(args: &[Value]) -> Result<Value, EvalError> {
     Ok(Value::List(chars))
 }
 
+#[builtin(name = "keyword->string", category = "String manipulation", related(symbol->string))]
+/// Convert keyword to string (without the colon).
+///
+/// # Examples
+///
+/// ```lisp
+/// (keyword->string :name) => "name"
+/// (keyword->string :my-key) => "my-key"
+/// ```
+///
+/// # See Also
+///
+/// symbol->string
+pub fn builtin_keyword_to_string(args: &[Value]) -> Result<Value, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::arity_error(
+            "keyword->string",
+            ARITY_ONE,
+            args.len(),
+        ));
+    }
+
+    match &args[0] {
+        Value::Keyword(s) => Ok(Value::String(s.clone())),
+        _ => Err(EvalError::type_error("keyword->string", "keyword", &args[0], 1)),
+    }
+}
+
 #[builtin(name = "list->string", category = "String manipulation", related(string->list))]
 /// Convert list of strings to single string.
 ///

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct MacroRegistry {
-    macros: HashMap<String, (Vec<String>, Value)>,
+    macros: HashMap<String, (Vec<String>, Option<String>, Value)>,
 }
 
 impl Default for MacroRegistry {
@@ -21,11 +21,11 @@ impl MacroRegistry {
         }
     }
 
-    pub fn define(&mut self, name: String, params: Vec<String>, body: Value) {
-        self.macros.insert(name, (params, body));
+    pub fn define(&mut self, name: String, params: Vec<String>, rest_param: Option<String>, body: Value) {
+        self.macros.insert(name, (params, rest_param, body));
     }
 
-    pub fn get(&self, name: &str) -> Option<(Vec<String>, Value)> {
+    pub fn get(&self, name: &str) -> Option<(Vec<String>, Option<String>, Value)> {
         self.macros.get(name).cloned()
     }
 }
@@ -41,13 +41,14 @@ mod tests {
         let params = vec!["x".to_string()];
         let body = Value::Symbol("x".to_string());
 
-        registry.define("test-macro".to_string(), params.clone(), body.clone());
+        registry.define("test-macro".to_string(), params.clone(), None, body.clone());
 
         let result = registry.get("test-macro");
         assert!(result.is_some());
 
-        let (retrieved_params, _retrieved_body) = result.unwrap();
+        let (retrieved_params, retrieved_rest, _retrieved_body) = result.unwrap();
         assert_eq!(retrieved_params, params);
+        assert_eq!(retrieved_rest, None);
     }
 
     #[test]

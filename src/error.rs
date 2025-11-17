@@ -15,6 +15,14 @@ pub const ARITY_TWO_OR_THREE: &str = "2-3";
 // ===== Common error message strings =====
 pub const ERR_SANDBOX_NOT_INIT: &str = "Sandbox not initialized";
 
+// Database error messages
+pub const ERR_DB_MISSING_HANDLE: &str = "Connection map missing :handle key";
+pub const ERR_DB_HANDLE_NOT_NUMBER: &str = "Handle must be a number";
+pub const ERR_DB_MISSING_BACKEND: &str = "Connection spec missing :backend key";
+pub const ERR_DB_BACKEND_NOT_STRING: &str = "Backend must be a string";
+pub const ERR_DB_MISSING_PATH: &str = "SQLite connection spec missing :path key";
+pub const ERR_DB_PATH_NOT_STRING: &str = "Path must be a string";
+
 #[allow(dead_code)]
 #[derive(Error, Debug, Clone)]
 pub enum EvalError {

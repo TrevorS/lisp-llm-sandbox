@@ -4,12 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, and sandboxed I/O capabilities. Features include:
-- **237 comprehensive tests** covering all major features
+This is a production-ready Scheme-flavored Lisp interpreter written in Rust with ~8k lines of code across 24 source files. The project implements a complete language with parser, evaluator, standard library, REPL, macros, sandboxed I/O, and database capabilities. Features include:
+- **286 comprehensive tests** covering all major features
 - **8 special forms** (define, lambda, if, begin, let, quote, quasiquote, defmacro)
-- **33 built-in functions** organized into 10 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, errors, help)
-- **41 standard library functions** in pure Lisp organized into 5 focused modules (core, math, string, test, http)
-- **Complete help system** with markdown documentation for all 82 functions (8 special forms + 33 builtins + 41 stdlib)
+- **37 built-in functions** organized into 11 categories (arithmetic, comparison, logic, types, lists, console, filesystem, network, database, errors, help)
+- **54 standard library functions** in pure Lisp organized into 6 focused modules (core, math, string, test, http, database)
+- **Complete help system** with markdown documentation for all 99 functions (8 special forms + 37 builtins + 54 stdlib)
+- **SQLite database integration** with query builders and security built-in
 - **Markdown-rendered help** with syntax highlighting via termimad
 
 ## Development Commands
@@ -137,6 +138,51 @@ The standard library has been reorganized into 5 focused modules, loaded at star
 
 Each function has ;;; comment documentation with Parameters, Returns, Time Complexity, Examples, and Notes sections.
 
+### Database Module (src/builtins/database.rs + src/stdlib/lisp/db.lisp)
+The database module provides SQLite integration with **4 Rust primitives** and **5 Lisp query builders**, enabling structured data persistence with security built-in.
+
+**Architecture**:
+- **Thread-local connection registry**: Connections stored in `HashMap<u64, Connection>` with handle-based lookup
+- **Handle-based design**: Connection specs return maps with `:handle` field for safe access
+- **Sandbox integration**: All paths validated through capability-based filesystem (no traversal attacks)
+- **Parameterized queries**: SQL injection protection via rusqlite parameter binding
+
+**Rust Primitives (src/builtins/database.rs)**:
+- **`db:open`**: Opens connection from spec map `{:backend "sqlite" :path "file.db"}`, returns map with `:handle`
+- **`db:close`**: Closes connection and removes from registry (REQUIRED to prevent resource leaks)
+- **`db:exec`**: Executes non-query SQL (INSERT/UPDATE/DELETE/CREATE), returns rows affected
+- **`db:query`**: Executes SELECT, returns list of row maps with keyword keys
+
+**Lisp Query Builders (src/stdlib/lisp/db.lisp)**:
+- **`db:insert`**: `(db:insert conn "users" {:name "Alice" :age 30})` - Insert row from map
+- **`db:update`**: `(db:update conn "users" {:age 31} {:id 1})` - Update with WHERE map
+- **`db:delete`**: `(db:delete conn "users" {:id 1})` - Delete with WHERE map
+- **`db:find`**: `(db:find conn "users" "*" {:age 30})` - SELECT with WHERE map (empty map = all rows)
+- **`db:count`**: `(db:count conn "users" {:active #t})` - Count rows matching WHERE map
+
+**Security Features**:
+1. Sandbox validates all paths (blocks `../`, absolute paths, validates against allowed directories)
+2. Parameterized queries prevent SQL injection (malicious strings stored as data, not executed)
+3. Type conversion ensures only safe types (Number, String, Bool, Nil) reach database
+
+**Important Notes**:
+- **Manual cleanup required**: Always call `db:close` on connections to prevent resource leaks
+- **Handle persistence**: Handles are unique across program lifetime (atomic counter)
+- **Type conversions**: Booleans stored as 0/1 integers, Nil stored as NULL
+- **Map keys**: Query builders use `keyword->string` to convert `:column` keywords to SQL column names
+
+**Example Usage**:
+```lisp
+;; Create and populate database
+(define conn (db:connect (sqlite:spec "users.db")))
+(db:execute conn "CREATE TABLE users (id INTEGER, name TEXT, age INTEGER)" '())
+(db:insert conn "users" {:id 1 :name "Alice" :age 30})
+(db:find conn "users" "*" {:age 30})  ; => ({:id 1 :name "Alice" :age 30})
+(db:close conn)  ; Critical: Clean up resources
+```
+
+**Test Coverage**: 14 comprehensive tests in `tests/database_tests.rs` covering security, lifecycle, operations, query builders, and edge cases.
+
 ## Important Patterns & Constraints
 
 ### Tail-Call Optimization
@@ -211,6 +257,7 @@ Use namespaces for **domain-specific helper modules** — cohesive sets of 3+ fu
 **Examples:**
 - `json:encode`, `json:decode`, `json:pretty` — JSON serialization module
 - `http:body`, `http:status`, `http:check-status` — HTTP response helpers
+- `db:insert`, `db:update`, `db:delete`, `db:find` — Database query builders
 - `map:query`, `map:select`, `map:update` — Advanced map utilities
 
 #### When to Use Kebab-Case (`function-name`)
@@ -242,7 +289,7 @@ This convention provides:
 ### Separation of Concerns
 - `parser.rs` - Only parsing, no evaluation
 - `eval.rs` - Only evaluation logic, uses parser as input; contains special forms + registration functions
-- `builtins/` - 10 category modules + coordination (see structure below)
+- `builtins/` - 11 category modules + coordination (see structure below)
 - `sandbox.rs` - Only I/O safety, isolated from evaluator
 - `env.rs` - Only scope management, no parsing/evaluation
 
@@ -258,6 +305,7 @@ builtins/
 ├── console.rs          # print, println
 ├── filesystem.rs       # read-file, write-file, file-exists?, file-size, list-files
 ├── network.rs          # http-get, http-post
+├── database.rs         # db:open, db:close, db:exec, db:query
 ├── errors.rs           # error, error?, error-msg
 └── help.rs             # help, doc
 ```
