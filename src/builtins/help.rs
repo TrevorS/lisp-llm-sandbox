@@ -1,15 +1,14 @@
-//! Help system operations: help, doc
+//! Help system operations: help
 //!
 //! Functions for accessing documentation and help information.
 //!
 //! - `help`: Show help for a function (displays markdown documentation)
-//! - `doc`: Extract docstring from a user-defined function
 //!
-//! The help system includes all 32 built-in functions and 8 special forms.
-//! User-defined functions can include docstrings as the first element of the body.
+//! The help system includes all built-in functions and special forms.
+//! Stdlib functions are documented using ;;; comments which are parsed and registered.
 
 use crate::env::Environment;
-use crate::error::{EvalError, ARITY_ONE, ARITY_ZERO_OR_ONE};
+use crate::error::{EvalError, ARITY_ZERO_OR_ONE};
 use crate::value::Value;
 use std::rc::Rc;
 
@@ -54,46 +53,21 @@ pub fn builtin_help(args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
-/// Returns the docstring of a function as a string
-pub fn builtin_doc(args: &[Value]) -> Result<Value, EvalError> {
-    if args.len() != 1 {
-        return Err(EvalError::arity_error("doc", ARITY_ONE, args.len()));
-    }
-
-    match &args[0] {
-        Value::Lambda { docstring, .. } => match docstring {
-            Some(doc) => Ok(Value::String(doc.clone())),
-            None => Ok(Value::Nil),
-        },
-        _ => Err(EvalError::type_error("doc", "lambda", &args[0], 1)),
-    }
-}
-
 /// Register all help system builtins in the environment
 pub fn register(env: &Rc<Environment>) {
     env.define("help".to_string(), Value::BuiltIn(builtin_help));
-    env.define("doc".to_string(), Value::BuiltIn(builtin_doc));
 
     // Register help entries
     crate::help::register_help(crate::help::HelpEntry {
         name: "help".to_string(),
         signature: "(help) or (help 'function-name)".to_string(),
-        description: "Show help information. With no arguments, displays quick reference.\nWith a function name, shows detailed documentation for that function.".to_string(),
+        description: "Show help information. With no arguments, displays quick reference.\nWith a function name, shows detailed documentation for that function.\n\nDocumentation for built-ins and special forms is maintained in Rust code.\nDocumentation for stdlib functions uses ;;; comments which are parsed and registered.".to_string(),
         examples: vec![
             "(help) => shows quick reference".to_string(),
             "(help 'cons) => detailed help for cons".to_string(),
-            "(help 'map) => help for user or stdlib function".to_string(),
+            "(help 'map) => help for stdlib function".to_string(),
         ],
-        related: vec!["doc".to_string()],
-        category: "Help system".to_string(),
-    });
-
-    crate::help::register_help(crate::help::HelpEntry {
-        name: "doc".to_string(),
-        signature: "(doc ...)".to_string(),
-        description: "Returns the docstring of a function as a string.\nWorks with user-defined functions that have docstrings.".to_string(),
-        examples: vec!["(doc factorial) => \"Computes factorial\"".to_string()],
-        related: vec!["help".to_string()],
+        related: vec![],
         category: "Help system".to_string(),
     });
 }

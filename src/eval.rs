@@ -200,7 +200,6 @@ pub fn eval_with_macros(
                                 rest_param,
                                 body,
                                 env: lambda_env,
-                                docstring: _,
                             } => {
                                 // Check arity with rest parameter support
                                 let min_args = params.len();
@@ -305,38 +304,31 @@ fn eval_define(
             let param_list = Value::List(func_def[1..].to_vec());
             let (params, rest_param) = parse_params(&param_list)?;
 
-            // Extract docstring if present: (define (f x) "doc" body)
-            let (inline_docstring, body) = match &args[1] {
-                Value::String(s) if args.len() > 2 => (Some(s.clone()), Box::new(args[2].clone())),
-                _ => (None, Box::new(args[1].clone())),
+            // Skip docstring if present: (define (f x) "doc" body) -> body is args[2]
+            // Otherwise body is args[1]
+            // Note: Docstrings are not stored in Lambda, only used for ;;; comment compatibility
+            let body = match &args[1] {
+                Value::String(_) if args.len() > 2 => Box::new(args[2].clone()),
+                _ => Box::new(args[1].clone()),
             };
 
-            // Check for pending doc comments from ;;; and merge with inline docstring
+            // Check for pending doc comments from ;;;
             let pending_docs = parser::take_pending_docs();
-            let docstring = if !pending_docs.is_empty() {
-                // Prefer pending docs (;;; comments) over inline docstrings
-                Some(pending_docs.join("\n"))
-            } else {
-                inline_docstring
-            };
-
-            // Register help entry if we have documentation (unless we're loading stdlib)
-            if let Some(ref doc) = docstring {
-                if !parser::should_skip_help_registration() {
-                    let signature = if let Some(ref rest) = rest_param {
-                        format!("({} {} . {})", name, params.join(" "), rest)
-                    } else {
-                        format!("({} {})", name, params.join(" "))
-                    };
-                    crate::help::register_help(crate::help::HelpEntry {
-                        name: name.clone(),
-                        signature,
-                        description: doc.clone(),
-                        examples: vec![], // Could parse from doc later
-                        related: vec![],
-                        category: "User Defined".to_string(),
-                    });
-                }
+            if !pending_docs.is_empty() && !parser::should_skip_help_registration() {
+                // Register help entry for ;;; documentation
+                let signature = if let Some(ref rest) = rest_param {
+                    format!("({} {} . {})", name, params.join(" "), rest)
+                } else {
+                    format!("({} {})", name, params.join(" "))
+                };
+                crate::help::register_help(crate::help::HelpEntry {
+                    name: name.clone(),
+                    signature,
+                    description: pending_docs.join("\n"),
+                    examples: vec![],
+                    related: vec![],
+                    category: "User Defined".to_string(),
+                });
             }
 
             // Create lambda
@@ -345,7 +337,6 @@ fn eval_define(
                 rest_param,
                 body,
                 env: env.clone(),
-                docstring,
             };
 
             // Define it
@@ -361,11 +352,12 @@ fn eval_define(
 }
 
 /// Evaluate a lambda expression
-/// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
+/// (lambda (x y z) body)
 /// Also supports rest parameters: (lambda (x y . rest) body)
+/// Note: Docstrings in the form (lambda (x) "doc" body) are parsed but not stored
 fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
-    if args.len() < 2 {
-        return Err(EvalError::arity_error("lambda", "at least 2", args.len()));
+    if args.len() < 2 || args.len() > 3 {
+        return Err(EvalError::arity_error("lambda", "2 or 3", args.len()));
     }
 
     // Extract parameters from args[0] using parse_params
@@ -377,10 +369,11 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
         param_list => parse_params(param_list)?,
     };
 
-    // Extract docstring if present: (lambda (x y) "doc" body)
-    let (docstring, body) = match &args[1] {
-        Value::String(s) if args.len() > 2 => (Some(s.clone()), Box::new(args[2].clone())),
-        _ => (None, Box::new(args[1].clone())),
+    // Skip docstring if present: (lambda (x) "doc" body) -> body is args[2]
+    // Otherwise body is args[1]
+    let body = match &args[1] {
+        Value::String(_) if args.len() == 3 => Box::new(args[2].clone()),
+        _ => Box::new(args[1].clone()),
     };
 
     Ok(Value::Lambda {
@@ -388,7 +381,6 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
         rest_param,
         body,
         env,
-        docstring,
     })
 }
 

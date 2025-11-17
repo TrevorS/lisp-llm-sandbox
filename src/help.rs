@@ -89,6 +89,8 @@ pub fn set_current_env(env: Option<Rc<Environment>>) {
 }
 
 /// Get help for a Lisp-defined function from the environment
+/// Note: This now only serves as a fallback. Documentation should be in the help registry
+/// via ;;; comments, not in lambda values.
 fn get_lisp_function_help(name: &str) -> Option<HelpEntry> {
     CURRENT_ENV.with(|env_ref| {
         let env_opt = env_ref.borrow();
@@ -96,9 +98,9 @@ fn get_lisp_function_help(name: &str) -> Option<HelpEntry> {
             if let Some(val) = env.get(name) {
                 match val {
                     Value::Lambda {
-                        params, rest_param, docstring, ..
+                        params, rest_param, ..
                     } => {
-                        // Build signature from parameters
+                        // Build minimal signature from parameters
                         let mut sig = format!("({}", name);
                         for param in params {
                             sig.push(' ');
@@ -113,7 +115,7 @@ fn get_lisp_function_help(name: &str) -> Option<HelpEntry> {
                         return Some(HelpEntry {
                             name: name.to_string(),
                             signature: sig,
-                            description: docstring.clone().unwrap_or_default(),
+                            description: "User-defined function (no documentation available)".to_string(),
                             examples: Vec::new(),
                             related: Vec::new(),
                             category: "User-defined".to_string(),
@@ -346,20 +348,19 @@ mod tests {
             rest_param: None,
             body: Box::new(Value::Symbol("+".to_string())),
             env: Rc::clone(&env),
-            docstring: Some("Add two numbers together".to_string()),
         };
         env.define("sum".to_string(), user_sum);
 
         // Set the current environment for help lookup
         set_current_env(Some(Rc::clone(&env)));
 
-        // Get help should return the user-defined version, not stdlib
+        // Get help should return the user-defined version (without documentation)
         let help = get_help("sum");
         assert!(help.is_some());
         let entry = help.unwrap();
         assert_eq!(entry.name, "sum");
         assert_eq!(entry.category, "User-defined");
-        assert_eq!(entry.description, "Add two numbers together");
+        assert_eq!(entry.description, "User-defined function (no documentation available)");
         assert_eq!(entry.signature, "(sum x y)");
 
         // Clean up
