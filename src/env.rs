@@ -7,14 +7,13 @@
 // - Thread-local GLOBAL_ENV in eval.rs manages global definitions
 // - This enables safe concurrent execution with spawn
 
-use crate::error::EvalError;
 use crate::value::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Environment {
-    bindings: HashMap<String, Value>,  // Immutable!
+    bindings: HashMap<String, Value>, // Immutable!
     parent: Option<Arc<Environment>>,
 }
 
@@ -59,26 +58,6 @@ impl Environment {
         }
 
         None
-    }
-
-    /// Updates an existing binding (for later use with set!)
-    /// Note: This needs to return a new environment in V2
-    pub fn set(&self, name: &str, value: Value) -> Result<Arc<Environment>, EvalError> {
-        // Check if it exists in this scope
-        if self.bindings.contains_key(name) {
-            return Ok(self.extend(name.to_string(), value));
-        }
-
-        // Check parent scope
-        if let Some(ref parent) = self.parent {
-            let new_parent = parent.set(name, value)?;
-            return Ok(Arc::new(Environment {
-                bindings: self.bindings.clone(),
-                parent: Some(new_parent),
-            }));
-        }
-
-        Err(EvalError::UndefinedSymbol(name.to_string()))
     }
 }
 

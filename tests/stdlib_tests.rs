@@ -543,7 +543,12 @@ fn test_compose() {
 fn test_string_capitalize() {
     let (env, mut macro_reg) = setup();
 
-    let result = eval_code(r#"(string-capitalize "hello world")"#, env.clone(), &mut macro_reg).unwrap();
+    let result = eval_code(
+        r#"(string-capitalize "hello world")"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
     match result {
         value::Value::String(s) => assert_eq!(s, "Hello world"),
         _ => panic!("Expected capitalized string"),
@@ -662,14 +667,24 @@ fn test_string_pad_left() {
     let (env, mut macro_reg) = setup();
 
     // Zero-padding
-    let result = eval_code(r#"(string-pad-left "42" 5 "0")"#, env.clone(), &mut macro_reg).unwrap();
+    let result = eval_code(
+        r#"(string-pad-left "42" 5 "0")"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
     match result {
         value::Value::String(s) => assert_eq!(s, "00042"),
         _ => panic!("Expected zero-padded string"),
     }
 
     // Already long enough
-    let result = eval_code(r#"(string-pad-left "test" 2 "x")"#, env.clone(), &mut macro_reg).unwrap();
+    let result = eval_code(
+        r#"(string-pad-left "test" 2 "x")"#,
+        env.clone(),
+        &mut macro_reg,
+    )
+    .unwrap();
     match result {
         value::Value::String(s) => assert_eq!(s, "test"),
         _ => panic!("Expected unchanged string"),

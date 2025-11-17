@@ -324,3 +324,103 @@ fn test_lisp_failing_assertion() {
     let result = eval_expr("(assert-equal 5 10)", &env).unwrap();
     assert!(matches!(result, Value::Error(_)));
 }
+
+// ============================================================================
+// Type Predicates Tests (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_nil_predicate() {
+    let env = test_env();
+    let result = eval_expr("(nil? nil)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(true)));
+
+    let result = eval_expr("(nil? 42)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(false)));
+}
+
+#[test]
+fn test_symbol_predicate() {
+    let env = test_env();
+    let result = eval_expr("(symbol? 'foo)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(true)));
+
+    let result = eval_expr("(symbol? \"string\")", &env).unwrap();
+    assert!(matches!(result, Value::Bool(false)));
+}
+
+#[test]
+fn test_bool_predicate() {
+    let env = test_env();
+    let result = eval_expr("(bool? #t)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(true)));
+
+    let result = eval_expr("(bool? #f)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(true)));
+
+    let result = eval_expr("(bool? 1)", &env).unwrap();
+    assert!(matches!(result, Value::Bool(false)));
+}
+
+// ============================================================================
+// Arithmetic - Modulo Operator Test (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_modulo_operator() {
+    let env = test_env();
+    let result = eval_expr("(% 10 3)", &env).unwrap();
+    assert!(matches!(result, Value::Number(n) if n == 1.0));
+
+    let result = eval_expr("(% 15 4)", &env).unwrap();
+    assert!(matches!(result, Value::Number(n) if n == 3.0));
+
+    let result = eval_expr("(% 8 2)", &env).unwrap();
+    assert!(matches!(result, Value::Number(n) if n == 0.0));
+}
+
+// ============================================================================
+// String Append Test (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_string_append() {
+    let env = test_env();
+    let result = eval_expr("(string-append \"Hello\" \" \" \"World\")", &env).unwrap();
+    match result {
+        Value::String(s) => assert_eq!(s, "Hello World"),
+        _ => panic!("Expected string"),
+    }
+}
+
+// ============================================================================
+// Help System Tests (Previously Untested)
+// ============================================================================
+
+#[test]
+fn test_help_builtin() {
+    let env = test_env();
+    // help with no args returns nil after printing
+    let result = eval_expr("(help)", &env).unwrap();
+    assert!(matches!(result, Value::Nil));
+}
+
+#[test]
+fn test_help_specific_function() {
+    let env = test_env();
+    // help with function name returns nil after printing
+    let result = eval_expr("(help '+)", &env).unwrap();
+    assert!(matches!(result, Value::Nil));
+}
+
+#[test]
+fn test_doc_builtin() {
+    let env = test_env();
+    // Test doc with a user-defined function with docstring
+    eval_expr("(define (test-fn x) \"A test function\" (+ x 1))", &env).unwrap();
+    let result = eval_expr("(doc test-fn)", &env).unwrap();
+    match result {
+        Value::String(s) => assert_eq!(s, "A test function"),
+        _ => panic!("Expected docstring"),
+    }
+}

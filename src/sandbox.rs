@@ -345,9 +345,7 @@ impl Sandbox {
         self.net_config
             .allowed_addresses
             .iter()
-            .any(|allowed| {
-                domain == *allowed || domain.ends_with(&format!(".{}", allowed))
-            })
+            .any(|allowed| domain == *allowed || domain.ends_with(&format!(".{}", allowed)))
     }
 
     /// Perform flexible HTTP request with method, optional headers, body, and timeout.

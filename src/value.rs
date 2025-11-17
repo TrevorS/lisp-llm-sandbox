@@ -20,7 +20,7 @@ pub enum Value {
     Lambda {
         params: Vec<String>,
         body: Box<Value>,
-        env: Arc<Environment>,  // Changed from Rc to Arc for thread-safety
+        env: Arc<Environment>, // Changed from Rc to Arc for thread-safety
         docstring: Option<String>,
     },
     Macro {

@@ -60,11 +60,20 @@ fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
                         receiver: Arc::new(receiver),
                     })
                 }
-                Value::Number(_) => Err(EvalError::runtime_error("make-channel", "capacity must be a non-negative integer")),
-                _ => Err(EvalError::runtime_error("make-channel", "capacity must be a number")),
+                Value::Number(_) => Err(EvalError::runtime_error(
+                    "make-channel",
+                    "capacity must be a non-negative integer",
+                )),
+                _ => Err(EvalError::runtime_error(
+                    "make-channel",
+                    "capacity must be a number",
+                )),
             }
         }
-        _ => Err(EvalError::runtime_error("make-channel", "expected 0 or 1 arguments")),
+        _ => Err(EvalError::runtime_error(
+            "make-channel",
+            "expected 0 or 1 arguments",
+        )),
     }
 }
 
@@ -94,7 +103,10 @@ fn make_channel(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 2 {
-        return Err(EvalError::runtime_error("channel-send", "expected 2 arguments"));
+        return Err(EvalError::runtime_error(
+            "channel-send",
+            "expected 2 arguments",
+        ));
     }
 
     match &args[0] {
@@ -105,7 +117,10 @@ fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
                 .map_err(|_| EvalError::runtime_error("channel-send", "channel is closed"))?;
             Ok(value)
         }
-        _ => Err(EvalError::runtime_error("channel-send", "first argument must be a channel")),
+        _ => Err(EvalError::runtime_error(
+            "channel-send",
+            "first argument must be a channel",
+        )),
     }
 }
 
@@ -134,14 +149,20 @@ fn channel_send(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::runtime_error("channel-recv", "expected 1 argument"));
+        return Err(EvalError::runtime_error(
+            "channel-recv",
+            "expected 1 argument",
+        ));
     }
 
     match &args[0] {
         Value::Channel { receiver, .. } => receiver
             .recv()
             .map_err(|_| EvalError::runtime_error("channel-recv", "channel is closed and empty")),
-        _ => Err(EvalError::runtime_error("channel-recv", "argument must be a channel")),
+        _ => Err(EvalError::runtime_error(
+            "channel-recv",
+            "argument must be a channel",
+        )),
     }
 }
 
@@ -172,7 +193,10 @@ fn channel_recv(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::runtime_error("channel-close", "expected 1 argument"));
+        return Err(EvalError::runtime_error(
+            "channel-close",
+            "expected 1 argument",
+        ));
     }
 
     match &args[0] {
@@ -183,7 +207,10 @@ fn channel_close(args: &[Value]) -> Result<Value, EvalError> {
             // In practice, channels close when all references are dropped.
             Ok(Value::Nil)
         }
-        _ => Err(EvalError::runtime_error("channel-close", "argument must be a channel")),
+        _ => Err(EvalError::runtime_error(
+            "channel-close",
+            "argument must be a channel",
+        )),
     }
 }
 
@@ -262,7 +289,10 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
         } => {
             // Verify zero-parameter lambda
             if !params.is_empty() {
-                return Err(EvalError::runtime_error("spawn", "function must take zero parameters"));
+                return Err(EvalError::runtime_error(
+                    "spawn",
+                    "function must take zero parameters",
+                ));
             }
 
             // Create result channel
@@ -304,7 +334,10 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
 
             Ok(result_channel)
         }
-        _ => Err(EvalError::runtime_error("spawn", "argument must be a lambda")),
+        _ => Err(EvalError::runtime_error(
+            "spawn",
+            "argument must be a lambda",
+        )),
     }
 }
 
@@ -352,7 +385,10 @@ fn spawn(args: &[Value]) -> Result<Value, EvalError> {
 )]
 fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
     if args.len() != 1 {
-        return Err(EvalError::runtime_error("spawn-link", "expected 1 argument"));
+        return Err(EvalError::runtime_error(
+            "spawn-link",
+            "expected 1 argument",
+        ));
     }
 
     match &args[0] {
@@ -364,7 +400,10 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
         } => {
             // Verify zero-parameter lambda
             if !params.is_empty() {
-                return Err(EvalError::runtime_error("spawn-link", "function must take zero parameters"));
+                return Err(EvalError::runtime_error(
+                    "spawn-link",
+                    "function must take zero parameters",
+                ));
             }
 
             // Create result channel
@@ -400,7 +439,7 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
                     Ok(val) => {
                         // Success: {:ok value}
                         let mut map = HashMap::new();
-                        map.insert("ok".to_string(), val);  // Note: Keywords stored as strings internally
+                        map.insert("ok".to_string(), val); // Note: Keywords stored as strings internally
                         Value::Map(map)
                     }
                     Err(e) => {
@@ -417,6 +456,9 @@ fn spawn_link(args: &[Value]) -> Result<Value, EvalError> {
 
             Ok(result_channel)
         }
-        _ => Err(EvalError::runtime_error("spawn-link", "argument must be a lambda")),
+        _ => Err(EvalError::runtime_error(
+            "spawn-link",
+            "argument must be a lambda",
+        )),
     }
 }

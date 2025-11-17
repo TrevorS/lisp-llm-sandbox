@@ -106,10 +106,7 @@ pub fn register_builtins(env: Arc<Environment>) {
 
     // Automatically iterate over all collected builtins
     for builtin in inventory::iter::<BuiltinRegistration> {
-        crate::eval::extend_global_env(
-            builtin.name.to_string(),
-            Value::BuiltIn(builtin.function)
-        );
+        crate::eval::extend_global_env(builtin.name.to_string(), Value::BuiltIn(builtin.function));
 
         // Convert static help data to HelpEntry
         crate::help::register_help(HelpEntry {

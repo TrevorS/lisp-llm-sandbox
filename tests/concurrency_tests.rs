@@ -188,11 +188,11 @@ fn test_channel_with_map_values() {
     match result {
         value::Value::Map(map) => {
             match map.get("name") {
-                Some(value::Value::String(s)) if s == "Alice" => {},
+                Some(value::Value::String(s)) if s == "Alice" => {}
                 _ => panic!("Expected name to be Alice"),
             }
             match map.get("age") {
-                Some(value::Value::Number(n)) if *n == 30.0 => {},
+                Some(value::Value::Number(n)) if *n == 30.0 => {}
                 _ => panic!("Expected age to be 30"),
             }
         }
@@ -244,11 +244,14 @@ fn test_channel_wrong_argument_count() {
     assert!(result.is_err());
 
     // channel-recv needs 1 argument
-    let result = eval_expr(r#"
+    let result = eval_expr(
+        r#"
         (begin
             (define ch (make-channel))
             (channel-recv ch ch))
-    "#, env.clone());
+    "#,
+        env.clone(),
+    );
     assert!(result.is_err());
 
     // channel-close needs 1 argument

@@ -10,7 +10,7 @@ use std::sync::{Arc, RwLock};
 // Thread-local storage for the global environment (used by define)
 // This allows define to update the global environment while maintaining immutability
 thread_local! {
-    static GLOBAL_ENV: RwLock<Option<Arc<Environment>>> = RwLock::new(None);
+    static GLOBAL_ENV: RwLock<Option<Arc<Environment>>> = const { RwLock::new(None) };
 }
 
 /// Set the global environment for this thread (used by REPL/main)
@@ -465,12 +465,20 @@ fn eval_letrec(
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.is_empty() {
-        return Err(EvalError::runtime_error("letrec", "expected bindings and body"));
+        return Err(EvalError::runtime_error(
+            "letrec",
+            "expected bindings and body",
+        ));
     }
 
     let bindings = match &args[0] {
         Value::List(items) => items,
-        _ => return Err(EvalError::runtime_error("letrec", "bindings must be a list")),
+        _ => {
+            return Err(EvalError::runtime_error(
+                "letrec",
+                "bindings must be a list",
+            ))
+        }
     };
 
     // Create new environment as child of current env
@@ -482,7 +490,12 @@ fn eval_letrec(
             Value::List(pair) if pair.len() == 2 => {
                 let name = match &pair[0] {
                     Value::Symbol(s) => s.clone(),
-                    _ => return Err(EvalError::runtime_error("letrec", "binding name must be symbol")),
+                    _ => {
+                        return Err(EvalError::runtime_error(
+                            "letrec",
+                            "binding name must be symbol",
+                        ))
+                    }
                 };
                 // KEY DIFFERENCE: evaluate in new_env (not env like in let)
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
