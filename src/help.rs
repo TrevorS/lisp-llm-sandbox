@@ -4,7 +4,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 use termimad::MadSkin;
 
 // Forward declarations
@@ -59,14 +59,6 @@ impl HelpRegistry {
         }
         by_cat
     }
-
-    /// Get all function names
-    #[allow(dead_code)]
-    pub fn all_names(&self) -> Vec<String> {
-        let mut names: Vec<_> = self.entries.keys().cloned().collect();
-        names.sort();
-        names
-    }
 }
 
 impl Default for HelpRegistry {
@@ -78,11 +70,11 @@ impl Default for HelpRegistry {
 // Thread-local help registry
 thread_local! {
     static HELP_REGISTRY: RefCell<HelpRegistry> = RefCell::new(HelpRegistry::new());
-    static CURRENT_ENV: RefCell<Option<Rc<Environment>>> = const { RefCell::new(None) };
+    static CURRENT_ENV: RefCell<Option<Arc<Environment>>> = const { RefCell::new(None) };
 }
 
 /// Set the current environment for help lookup (needed for user-defined functions)
-pub fn set_current_env(env: Option<Rc<Environment>>) {
+pub fn set_current_env(env: Option<Arc<Environment>>) {
     CURRENT_ENV.with(|e| {
         *e.borrow_mut() = env;
     });
@@ -162,12 +154,6 @@ pub fn get_help(name: &str) -> Option<HelpEntry> {
 /// Get all entries organized by category
 pub fn all_by_category() -> HashMap<String, Vec<HelpEntry>> {
     HELP_REGISTRY.with(|reg| reg.borrow().by_category())
-}
-
-/// Get all function names
-#[allow(dead_code)]
-pub fn all_names() -> Vec<String> {
-    HELP_REGISTRY.with(|reg| reg.borrow().all_names())
 }
 
 /// Format a single help entry for display with markdown rendering and syntax highlighting
@@ -329,20 +315,19 @@ mod tests {
     #[serial_test::serial]
     fn test_user_defined_function_shadows_stdlib_help() {
         use crate::env::Environment;
-        use std::rc::Rc;
 
         // Create an environment and define a user function
-        let env = Rc::new(Environment::new());
+        let env = Environment::new();
         let user_sum = Value::Lambda {
             params: vec!["x".to_string(), "y".to_string()],
             body: Box::new(Value::Symbol("+".to_string())),
-            env: Rc::clone(&env),
+            env: env.clone(),
             docstring: Some("Add two numbers together".to_string()),
         };
-        env.define("sum".to_string(), user_sum);
+        let env = env.extend("sum".to_string(), user_sum);
 
         // Set the current environment for help lookup
-        set_current_env(Some(Rc::clone(&env)));
+        set_current_env(Some(env.clone()));
 
         // Get help should return the user-defined version, not stdlib
         let help = get_help("sum");

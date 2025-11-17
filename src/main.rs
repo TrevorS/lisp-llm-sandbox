@@ -10,7 +10,6 @@ mod parser;
 mod sandbox;
 mod stdlib;
 mod stdlib_registry;
-mod tools;
 mod value;
 
 use builtins::{register_builtins, set_sandbox_storage};
@@ -25,7 +24,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{Config, Editor};
 use sandbox::Sandbox;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 use stdlib::register_stdlib;
 use stdlib_registry::register_stdlib_functions;
 
@@ -95,13 +94,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Conditionally load standard library modules
     if !args.no_stdlib {
-        // Load stdlib modules in order: core, math, string, test, http
+        // Load stdlib modules in order: core, math, string, test, http, concurrency
         let modules = [
             ("core", include_str!("stdlib/lisp/core.lisp")),
             ("math", include_str!("stdlib/lisp/math.lisp")),
             ("string", include_str!("stdlib/lisp/string.lisp")),
             ("test", include_str!("stdlib/lisp/test.lisp")),
             ("http", include_str!("stdlib/lisp/http.lisp")),
+            ("concurrency", include_str!("stdlib/lisp/concurrency.lisp")),
         ];
 
         // Skip automatic help registration during stdlib loading
@@ -248,7 +248,7 @@ fn build_net_config(args: &CliArgs) -> NetConfig {
 /// Execute a Lisp script file
 fn run_script(
     path: &PathBuf,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Read script file (script files are trusted input, not sandboxed)
@@ -293,7 +293,7 @@ fn run_script(
 /// Load and evaluate the standard library
 fn load_stdlib(
     code: &str,
-    env: std::rc::Rc<Environment>,
+    env: std::sync::Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<(), String> {
     // Parse each expression in the stdlib
@@ -411,9 +411,17 @@ fn find_expr_end(input: &str) -> Result<usize, String> {
         // S-expression - find matching closing paren
         let mut depth = 0;
         let mut in_string = false;
+        let mut escape_next = false;
 
         while i < chars.len() {
+            if escape_next {
+                escape_next = false;
+                i += 1;
+                continue;
+            }
+
             match chars[i] {
+                '\\' if in_string => escape_next = true,
                 '"' => in_string = !in_string,
                 '(' if !in_string => depth += 1,
                 ')' if !in_string => {

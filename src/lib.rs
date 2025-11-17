@@ -55,7 +55,7 @@
 //!
 //! **File I/O** (5): read-file, write-file, file-exists?, file-size, list-files
 //!
-//! **Network I/O** (2): http-get, http-post
+//! **Network I/O** (1): http-request
 //!
 //! **Error Handling** (3): error, error?, error-msg
 //!
@@ -134,5 +134,4 @@ pub mod parser;
 pub mod sandbox;
 pub mod stdlib;
 pub mod stdlib_registry;
-pub mod tools;
 pub mod value;

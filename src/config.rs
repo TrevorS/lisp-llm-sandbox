@@ -17,12 +17,12 @@ Quick Start Examples:
 LLM-Optimized Features:
   • Maps with keywords: {:name "Alice" :age 30}
   • Structured I/O returns maps with metadata
-  • 46 stdlib functions auto-loaded (map, filter, reduce, etc.)
+  • 53 stdlib functions auto-loaded (map, filter, reduce, etc.)
   • Macros and compile-time code transformation
   • Tail-call optimization for deep recursion
 
 Available Commands:
-  (help)                    - Show all 130+ functions by category
+  (help)                    - Show all 143 functions by category
   (help 'function-name)     - Detailed help for a specific function
   (quit) or (exit)          - Exit the REPL
 
@@ -63,13 +63,4 @@ pub struct NetConfig {
     /// Allowed network addresses (host:port format)
     /// Empty = no restrictions (if enabled=true)
     pub allowed_addresses: Vec<String>,
-}
-
-/// Combined I/O sandbox configuration
-/// Reserved for future phases where full combined config builder is needed
-#[allow(dead_code)]
-#[derive(Debug, Clone, Default)]
-pub struct IoConfig {
-    pub filesystem: FsConfig,
-    pub network: NetConfig,
 }

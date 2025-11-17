@@ -43,7 +43,7 @@ A complete, production-ready Lisp interpreter implemented in Rust with an intera
 
 **Filesystem I/O** (5): `read-file`, `write-file`, `file-exists?`, `file-size`, `list-files`
 
-**Network I/O** (2): `http-get`, `http-post`
+**Network I/O** (1): `http-request`
 
 **Error Handling** (3): `error`, `error?`, `error-msg`
 
@@ -263,10 +263,13 @@ The interpreter has a first-class help system:
 ### Network I/O
 ```lisp
 ; Make HTTP GET request
-(http-get "https://example.com")  ; => HTML response body
+(http-request "https://example.com" {:method "GET"})
+; => {:status 200 :headers {...} :body "HTML response body"}
 
-; Make HTTP POST request
-(http-post "https://api.example.com/data" "request body")  ; => response
+; Make HTTP POST request with body and timeout
+(http-request "https://api.example.com/data"
+              {:method "POST" :body "{...}" :timeout 5000})
+; => {:status 201 :headers {...} :body "response"}
 ```
 
 ### Help System

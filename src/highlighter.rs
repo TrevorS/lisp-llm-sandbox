@@ -470,6 +470,7 @@ fn get_special_forms() -> HashSet<&'static str> {
         "if",
         "begin",
         "let",
+        "letrec",
         "quote",
         "quasiquote",
         "unquote",
@@ -508,22 +509,36 @@ fn get_builtins() -> HashSet<&'static str> {
         "length",
         "empty?",
         // Type predicates
+        "bool?",
+        "channel?",
+        "keyword?",
+        "list?",
+        "map?",
+        "nil?",
         "number?",
         "string?",
-        "list?",
-        "nil?",
         "symbol?",
-        "bool?",
-        // I/O
+        // Map operations
+        "map-new",
+        // Console I/O
         "print",
         "println",
-        "read-file",
-        "write-file",
+        // Filesystem
         "file-exists?",
         "file-size",
+        "file-stat",
         "list-files",
-        "http-get",
-        "http-post",
+        "read-file",
+        "write-file",
+        // Network
+        "http-request",
+        // Concurrency
+        "channel-close",
+        "channel-recv",
+        "channel-send",
+        "make-channel",
+        "spawn",
+        "spawn-link",
         // Error handling
         "error",
         "error?",
@@ -637,6 +652,9 @@ fn highlight_value(value: &Value) -> String {
         }
         Value::BuiltIn(_) => {
             format!("{}#<builtin>{}", COLOR_BUILTIN, COLOR_RESET)
+        }
+        Value::Channel { .. } => {
+            format!("{}#<channel>{}", COLOR_BUILTIN, COLOR_RESET)
         }
         Value::Error(msg) => {
             format!("{}#<error: {}>{}", COLOR_SPECIAL_FORM, msg, COLOR_RESET)

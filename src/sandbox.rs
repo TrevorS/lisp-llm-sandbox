@@ -133,6 +133,23 @@ impl Sandbox {
 
         let (root, _) = self.find_root_for_path(path, false)?;
 
+        // Check file size before reading
+        let metadata = root.metadata(path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                SandboxError::FileNotFound(path.to_string())
+            } else {
+                SandboxError::IoError(format!("Cannot stat {}: {}", path, e))
+            }
+        })?;
+
+        if metadata.len() > self.fs_config.max_file_size as u64 {
+            return Err(SandboxError::FileTooLarge(format!(
+                "{} bytes exceeds limit of {} bytes",
+                metadata.len(),
+                self.fs_config.max_file_size
+            )));
+        }
+
         // cap-std::Dir::read_to_string provides safe access
         root.read_to_string(path).map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
@@ -305,15 +322,8 @@ impl Sandbox {
     // Network Operations
     // ========================================================================
 
-    /// Check if network is enabled
-    /// Reserved for future use in diagnostic/management functions
-    #[allow(dead_code)]
-    pub fn is_network_enabled(&self) -> bool {
-        self.net_config.enabled
-    }
-
     /// Check if an address is allowed
-    fn is_address_allowed(&self, address: &str) -> bool {
+    fn is_address_allowed(&self, url: &str) -> bool {
         if !self.net_config.enabled {
             return false;
         }
@@ -323,11 +333,19 @@ impl Sandbox {
             return true;
         }
 
-        // Check against allowlist
+        // Extract domain from URL
+        let domain = url
+            .split("://")
+            .nth(1)
+            .and_then(|s| s.split('/').next())
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
+
+        // Check against allowlist with proper domain matching
         self.net_config
             .allowed_addresses
             .iter()
-            .any(|allowed| address.contains(allowed))
+            .any(|allowed| domain == *allowed || domain.ends_with(&format!(".{}", allowed)))
     }
 
     /// Perform flexible HTTP request with method, optional headers, body, and timeout.

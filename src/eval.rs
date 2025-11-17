@@ -5,18 +5,46 @@ use crate::error::{EvalError, ARITY_ONE, ARITY_TWO_OR_THREE};
 use crate::macros::MacroRegistry;
 use crate::parser;
 use crate::value::Value;
-use std::rc::Rc;
+use std::sync::{Arc, RwLock};
+
+// Thread-local storage for the global environment (used by define)
+// This allows define to update the global environment while maintaining immutability
+thread_local! {
+    static GLOBAL_ENV: RwLock<Option<Arc<Environment>>> = const { RwLock::new(None) };
+}
+
+/// Set the global environment for this thread (used by REPL/main)
+pub fn set_global_env(env: Arc<Environment>) {
+    GLOBAL_ENV.with(|global| {
+        *global.write().unwrap() = Some(env);
+    });
+}
+
+/// Get the current global environment
+pub fn get_global_env() -> Option<Arc<Environment>> {
+    GLOBAL_ENV.with(|global| global.read().unwrap().clone())
+}
+
+/// Update the global environment with a new binding
+pub fn extend_global_env(name: String, value: Value) {
+    GLOBAL_ENV.with(|global| {
+        let mut guard = global.write().unwrap();
+        if let Some(env) = guard.as_ref() {
+            *guard = Some(env.extend(name, value));
+        }
+    });
+}
 
 /// Main evaluation function with tail call optimization
 #[allow(dead_code)]
-pub fn eval(expr: Value, env: Rc<Environment>) -> Result<Value, EvalError> {
+pub fn eval(expr: Value, env: Arc<Environment>) -> Result<Value, EvalError> {
     eval_with_macros(expr, env, &mut MacroRegistry::new())
 }
 
 /// Evaluation function with macro registry support
 pub fn eval_with_macros(
     mut expr: Value,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     let mut current_env = env;
@@ -30,6 +58,7 @@ pub fn eval_with_macros(
             | Value::Bool(_)
             | Value::String(_)
             | Value::Keyword(_)
+            | Value::Channel { .. }
             | Value::Nil => {
                 return Ok(expr.clone());
             }
@@ -52,9 +81,21 @@ pub fn eval_with_macros(
                 if name == "nil" {
                     return Ok(Value::Nil);
                 }
-                return current_env
-                    .get(name)
-                    .ok_or_else(|| EvalError::UndefinedSymbol(name.clone()));
+
+                // Look in current environment first (for local bindings like let, lambda params)
+                if let Some(val) = current_env.get(name) {
+                    return Ok(val);
+                }
+
+                // Fallback to global environment if set (for top-level defines)
+                if let Some(global_env) = get_global_env() {
+                    if let Some(val) = global_env.get(name) {
+                        return Ok(val);
+                    }
+                }
+
+                // Not found anywhere
+                return Err(EvalError::UndefinedSymbol(name.clone()));
             }
 
             // Empty list evaluates to nil
@@ -137,6 +178,9 @@ pub fn eval_with_macros(
                     Value::Symbol(s) if s == "let" => {
                         return eval_let(&items[1..], current_env, macro_reg);
                     }
+                    Value::Symbol(s) if s == "letrec" => {
+                        return eval_letrec(&items[1..], current_env, macro_reg);
+                    }
                     _ => {
                         // Function application - check if it's a lambda for TCO
                         let func =
@@ -173,9 +217,9 @@ pub fn eval_with_macros(
                                 }
 
                                 // Create new environment for lambda
-                                let new_env = Environment::with_parent(lambda_env);
+                                let mut new_env = Environment::with_parent(lambda_env);
                                 for (param, arg) in params.iter().zip(args.iter()) {
-                                    new_env.define(param.clone(), arg.clone());
+                                    new_env = new_env.extend(param.clone(), arg.clone());
                                 }
 
                                 // Tail call: set up for next iteration
@@ -209,18 +253,27 @@ pub fn eval_with_macros(
 /// - (define (f x) body) - function definition (syntactic sugar for lambda)
 fn eval_define(
     args: &[Value],
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::arity_error("define", "at least 2", args.len()));
     }
 
+    // Initialize global environment if not set (for tests)
+    GLOBAL_ENV.with(|global| {
+        let guard = global.read().unwrap();
+        if guard.is_none() {
+            drop(guard);
+            set_global_env(env.clone());
+        }
+    });
+
     match &args[0] {
         // Variable definition: (define x 42)
         Value::Symbol(name) => {
             let value = eval_with_macros(args[1].clone(), env.clone(), macro_reg)?;
-            env.define(name.clone(), value);
+            extend_global_env(name.clone(), value);
             Ok(Value::Symbol(name.clone()))
         }
 
@@ -285,12 +338,12 @@ fn eval_define(
             let lambda = Value::Lambda {
                 params,
                 body,
-                env: env.clone(),
+                env: Arc::clone(&env),
                 docstring,
             };
 
-            // Define it
-            env.define(name.clone(), lambda);
+            // Define it in global env
+            extend_global_env(name.clone(), lambda);
             Ok(Value::Symbol(name))
         }
 
@@ -303,7 +356,7 @@ fn eval_define(
 
 /// Evaluate a lambda expression
 /// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
-fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
+fn eval_lambda(args: &[Value], env: Arc<Environment>) -> Result<Value, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::arity_error("lambda", "at least 2", args.len()));
     }
@@ -355,7 +408,7 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
 /// (let ((x 1) (y 2)) body)
 fn eval_let(
     args: &[Value],
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.is_empty() {
@@ -368,7 +421,7 @@ fn eval_let(
     };
 
     // Create new environment as child of current env
-    let new_env = Environment::with_parent(env);
+    let mut new_env = Environment::with_parent(env);
 
     // Evaluate bindings and add to new environment
     for binding in bindings {
@@ -384,11 +437,73 @@ fn eval_let(
                     }
                 };
                 let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
-                new_env.define(name, value);
+                new_env = new_env.extend(name, value);
             }
             _ => {
                 return Err(EvalError::runtime_error(
                     "let",
+                    "binding must be [symbol value]",
+                ));
+            }
+        }
+    }
+
+    // Evaluate body in new environment
+    let mut result = Value::Nil;
+    for expr in &args[1..] {
+        result = eval_with_macros(expr.clone(), new_env.clone(), macro_reg)?;
+    }
+    Ok(result)
+}
+
+/// Evaluate a letrec special form (recursive let)
+/// (letrec ((f (lambda ...))) body)
+/// Unlike `let`, bindings are evaluated in the new environment, allowing recursive references
+fn eval_letrec(
+    args: &[Value],
+    env: Arc<Environment>,
+    macro_reg: &mut MacroRegistry,
+) -> Result<Value, EvalError> {
+    if args.is_empty() {
+        return Err(EvalError::runtime_error(
+            "letrec",
+            "expected bindings and body",
+        ));
+    }
+
+    let bindings = match &args[0] {
+        Value::List(items) => items,
+        _ => {
+            return Err(EvalError::runtime_error(
+                "letrec",
+                "bindings must be a list",
+            ))
+        }
+    };
+
+    // Create new environment as child of current env
+    let mut new_env = Environment::with_parent(env);
+
+    // Evaluate bindings in the NEW environment (allowing recursion)
+    for binding in bindings {
+        match binding {
+            Value::List(pair) if pair.len() == 2 => {
+                let name = match &pair[0] {
+                    Value::Symbol(s) => s.clone(),
+                    _ => {
+                        return Err(EvalError::runtime_error(
+                            "letrec",
+                            "binding name must be symbol",
+                        ))
+                    }
+                };
+                // KEY DIFFERENCE: evaluate in new_env (not env like in let)
+                let value = eval_with_macros(pair[1].clone(), new_env.clone(), macro_reg)?;
+                new_env = new_env.extend(name, value);
+            }
+            _ => {
+                return Err(EvalError::runtime_error(
+                    "letrec",
                     "binding must be [symbol value]",
                 ));
             }
@@ -408,7 +523,7 @@ fn eval_let(
 fn eval_quasiquote(
     arg: Value,
     depth: usize,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     match arg {
@@ -509,7 +624,7 @@ fn eval_quasiquote(
 /// (defmacro name (params) body)
 fn eval_defmacro(
     args: &[Value],
-    _env: Rc<Environment>,
+    _env: Arc<Environment>,
     macro_reg: &mut MacroRegistry,
 ) -> Result<Value, EvalError> {
     if args.len() < 3 {
@@ -562,7 +677,7 @@ fn eval_defmacro(
 fn expand_macros(
     expr: Value,
     macro_reg: &MacroRegistry,
-    env: Rc<Environment>,
+    env: Arc<Environment>,
 ) -> Result<Value, EvalError> {
     match expr {
         Value::List(ref items) if !items.is_empty() => {
@@ -580,10 +695,10 @@ fn expand_macros(
                             ));
                         }
 
-                        let macro_env = Environment::with_parent(env.clone());
+                        let mut macro_env = Environment::with_parent(env.clone());
                         for (param, arg) in params.iter().zip(args.iter()) {
                             // Arguments to macros are NOT evaluated yet
-                            macro_env.define(param.clone(), arg.clone());
+                            macro_env = macro_env.extend(param.clone(), arg.clone());
                         }
 
                         // Evaluate body in macro environment (this handles quasiquote expansion)
@@ -663,7 +778,7 @@ pub fn register_special_forms_part1() {
 }
 
 /// Register help documentation for special forms (Part 2)
-/// Documents: let, quote, quasiquote, defmacro
+/// Documents: let, letrec, quote, quasiquote, defmacro
 pub fn register_special_forms_part2() {
     crate::help::register_help(crate::help::HelpEntry {
         name: "let".to_string(),
@@ -676,6 +791,44 @@ pub fn register_special_forms_part2() {
             "(define (quadratic a b c x) (let ((delta (- (* b b) (* 4 a c)))) (/ delta 2))) => quadratic".to_string(),
         ],
         related: vec!["lambda".to_string(), "define".to_string()],
+        category: "Special forms".to_string(),
+    });
+
+    crate::help::register_help(crate::help::HelpEntry {
+        name: "letrec".to_string(),
+        signature: "(letrec ((var1 val1) (var2 val2) ...) body)".to_string(),
+        description: r#"Define mutually recursive local bindings.
+
+Similar to `let`, but allows bindings to refer to each other recursively.
+This enables defining local recursive functions and mutually recursive definitions.
+
+**Parameters:**
+- bindings: List of (variable value) pairs, where values can reference any variable in the binding list
+- body: Expression evaluated with all bindings in scope
+
+**Returns:** Result of evaluating body
+
+**Examples:**
+```lisp
+;; Local recursive function
+(letrec ((factorial (lambda (n)
+                      (if (<= n 1) 1 (* n (factorial (- n 1)))))))
+  (factorial 5))  ; => 120
+
+;; Mutually recursive functions
+(letrec ((even? (lambda (n) (if (= n 0) #t (odd? (- n 1)))))
+         (odd? (lambda (n) (if (= n 0) #f (even? (- n 1))))))
+  (even? 10))  ; => #t
+```
+
+**Notes:**
+- Unlike `let`, all bindings are available to all value expressions
+- Essential for defining local recursive and mutually recursive functions
+- Bindings are evaluated in an environment where all variables are already defined"#.to_string(),
+        examples: vec![
+            "(letrec ((fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))) (fact 5))".to_string(),
+        ],
+        related: vec!["let".to_string(), "define".to_string(), "lambda".to_string()],
         category: "Special forms".to_string(),
     });
 
@@ -766,7 +919,7 @@ mod tests {
     #[test]
     fn test_eval_symbol_lookup() {
         let env = Environment::new();
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         let result = eval(Value::Symbol("x".to_string()), env).unwrap();
         match result {
@@ -815,8 +968,9 @@ mod tests {
             _ => panic!("Expected Symbol(\"x\")"),
         }
 
-        // Check that x is now defined
-        match env.get("x") {
+        // Check that x is now defined in the global environment
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 42.0),
             _ => panic!("Expected x to be defined as Number(42.0)"),
         }
@@ -844,8 +998,9 @@ mod tests {
             _ => panic!("Expected Symbol(\"f\")"),
         }
 
-        // Check that f is now defined as a lambda
-        match env.get("f") {
+        // Check that f is now defined as a lambda in global env
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("f") {
             Some(Value::Lambda { params, body, .. }) => {
                 assert_eq!(params.len(), 1);
                 assert_eq!(params[0], "x");
@@ -879,25 +1034,32 @@ mod tests {
     }
 
     #[test]
-    fn test_shadowing_in_eval() {
-        let parent = Environment::new();
-        parent.define("x".to_string(), Value::Number(10.0));
+    fn test_shadowing_with_let() {
+        // Note: In our immutable architecture, 'define' creates global bindings,
+        // while 'let' creates local bindings. This test shows local shadowing with 'let'.
+        let env = Environment::new();
+        let env = env.extend("x".to_string(), Value::Number(10.0));
 
-        let child = Environment::with_parent(parent);
-
-        // Define x in child scope
-        let define_expr = Value::List(vec![
-            Value::Symbol("define".to_string()),
+        // Use let to shadow x locally
+        let expr = Value::List(vec![
+            Value::Symbol("let".to_string()),
+            Value::List(vec![Value::List(vec![
+                Value::Symbol("x".to_string()),
+                Value::Number(20.0),
+            ])]),
             Value::Symbol("x".to_string()),
-            Value::Number(20.0),
         ]);
-        eval(define_expr, child.clone()).unwrap();
 
-        // Child should see its own value
-        let result = eval(Value::Symbol("x".to_string()), child).unwrap();
+        let result = eval(expr, env.clone()).unwrap();
         match result {
             Value::Number(n) => assert_eq!(n, 20.0),
             _ => panic!("Expected Number(20.0)"),
+        }
+
+        // Original x should still be 10
+        match env.get("x") {
+            Some(Value::Number(n)) => assert_eq!(n, 10.0),
+            _ => panic!("Expected x to still be 10.0"),
         }
     }
 
@@ -1339,8 +1501,9 @@ mod tests {
             _ => panic!("Expected Number(20.0)"),
         }
 
-        // Verify x was also defined
-        match env.get("x") {
+        // Verify x was also defined in global env
+        let global_env = get_global_env().expect("Global env should be set");
+        match global_env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 10.0),
             _ => panic!("Expected x to be defined as 10.0"),
         }
@@ -1403,7 +1566,7 @@ mod tests {
         crate::builtins::register_builtins(env.clone());
 
         // Define x globally
-        env.define("x".to_string(), Value::Number(100.0));
+        let env = env.extend("x".to_string(), Value::Number(100.0));
 
         // (let ((x 10)) x) - should shadow global x
         let expr = Value::List(vec![
@@ -1421,7 +1584,7 @@ mod tests {
             _ => panic!("Expected Number(10.0)"),
         }
 
-        // Global x should still be 100
+        // Global x should still be 100 (unchanged by let)
         match env.get("x") {
             Some(Value::Number(n)) => assert_eq!(n, 100.0),
             _ => panic!("Expected global x to still be 100.0"),
@@ -1704,7 +1867,7 @@ mod tests {
         let mut macro_reg = MacroRegistry::new();
 
         // Define x
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         // `(1 ,x 3) should return (1 42 3)
         let expr = Value::List(vec![
@@ -1906,7 +2069,7 @@ mod tests {
         let env = Environment::new();
         let mut macro_reg = MacroRegistry::new();
 
-        env.define("x".to_string(), Value::Number(42.0));
+        let env = env.extend("x".to_string(), Value::Number(42.0));
 
         // ``(1 ,x) should return `(1 ,x)
         let expr = Value::List(vec![

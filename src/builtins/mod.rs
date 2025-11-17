@@ -1,6 +1,6 @@
 //! # Built-in Functions Module
 //!
-//! Core built-in functions for the Lisp interpreter, organized into 12 categories with 55 total functions.
+//! Core built-in functions for the Lisp interpreter, organized into 14 categories with 82 total functions.
 //!
 //! ## Naming Convention
 //!
@@ -22,7 +22,7 @@
 //! - **[lists]** (6): cons, car, cdr, list, length, empty? - List manipulation
 //! - **[console]** (2): print, println - Output operations
 //! - **[filesystem]** (5): read-file, write-file, file-exists?, file-size, list-files - File I/O
-//! - **[network]** (2): http-get, http-post - Network requests
+//! - **[network]** (1): http-request - Network requests
 //! - **[errors]** (3): error, error?, error-msg - Error handling
 //! - **[strings]** (17): string-split, string-join, string-append, substring, string-trim, string-upper, string-lower, string-replace, string-contains?, string-starts-with?, string-ends-with?, string-empty?, string-length, string->number, number->string, string->list, list->string - String manipulation
 //! - **[testing]** (6): assert, assert-equal, assert-error, register-test, run-all-tests, clear-tests - Testing and assertions
@@ -37,7 +37,7 @@ use crate::help::HelpEntry;
 use crate::sandbox::Sandbox;
 use crate::value::Value;
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 // ============================================================================
 // Builtin Auto-Registration Infrastructure
@@ -78,6 +78,7 @@ pub fn set_sandbox_storage(sandbox: Sandbox) {
 
 pub mod arithmetic;
 pub mod comparison;
+pub mod concurrency;
 pub mod console;
 pub mod errors;
 pub mod filesystem;
@@ -99,10 +100,13 @@ pub mod types;
 ///
 /// This function automatically discovers and registers all functions marked with
 /// #[builtin] across all modules via the inventory crate's compile-time collection.
-pub fn register_builtins(env: Rc<Environment>) {
+pub fn register_builtins(env: Arc<Environment>) {
+    // Set the global environment for define() calls
+    crate::eval::set_global_env(env.clone());
+
     // Automatically iterate over all collected builtins
     for builtin in inventory::iter::<BuiltinRegistration> {
-        env.define(builtin.name.to_string(), Value::BuiltIn(builtin.function));
+        crate::eval::extend_global_env(builtin.name.to_string(), Value::BuiltIn(builtin.function));
 
         // Convert static help data to HelpEntry
         crate::help::register_help(HelpEntry {

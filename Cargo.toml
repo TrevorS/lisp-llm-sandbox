@@ -16,6 +16,7 @@ categories = ["compilers", "command-line-utilities", "educational"]
 [dependencies]
 cap-std = "3.4.5"
 clap = { version = "4.5.51", features = ["derive"] }
+crossbeam-channel = "0.5"
 inventory = "0.3"
 lisp-macros = { path = "lisp-macros" }
 nom = "8"

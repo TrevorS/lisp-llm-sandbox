@@ -254,7 +254,7 @@
 ;;;
 ;;; **Notes:** Returns shorter list if requested number exceeds list length.
 (define (take n lst)
-  (if (= n 0)
+  (if (or (= n 0) (empty? lst))
       '()
       (cons (car lst) (take (- n 1) (cdr lst)))))
 
@@ -275,7 +275,7 @@
 ;;;
 ;;; **Notes:** Returns empty list if n >= list length.
 (define (drop n lst)
-  (if (= n 0)
+  (if (or (= n 0) (empty? lst))
       lst
       (drop (- n 1) (cdr lst))))
 
@@ -296,7 +296,7 @@
 ;;;
 ;;; **Notes:** Stops when shorter list ends. Use take/drop to pad lists.
 (define (zip lst1 lst2)
-  (if (empty? lst1)
+  (if (or (empty? lst1) (empty? lst2))
       '()
       (cons (list (car lst1) (car lst2))
             (zip (cdr lst1) (cdr lst2)))))

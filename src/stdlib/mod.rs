@@ -16,11 +16,11 @@
 //! section for detailed guidance.
 
 use crate::env::Environment;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub mod json;
 
 /// Register all stdlib modules in the environment
-pub fn register_stdlib(env: Rc<Environment>) {
+pub fn register_stdlib(env: Arc<Environment>) {
     json::register(&env);
 }
