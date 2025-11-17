@@ -7,6 +7,49 @@ use crate::parser;
 use crate::value::Value;
 use std::rc::Rc;
 
+/// Parse parameter list with optional rest parameter
+/// Supports: (x y z) or (x y . rest)
+/// Returns: (fixed_params, optional_rest_param)
+fn parse_params(param_list: &Value) -> Result<(Vec<String>, Option<String>), EvalError> {
+    match param_list {
+        Value::List(items) => {
+            let mut params = Vec::new();
+            let mut rest_param = None;
+
+            let mut i = 0;
+            while i < items.len() {
+                match &items[i] {
+                    Value::Symbol(s) if s == "." => {
+                        // Found dot - next item is rest parameter
+                        if i + 1 >= items.len() {
+                            return Err(EvalError::runtime_error("parse-params", "Missing rest parameter after ."));
+                        }
+                        if i + 2 < items.len() {
+                            return Err(EvalError::runtime_error("parse-params", "Only one rest parameter allowed after ."));
+                        }
+                        if let Value::Symbol(rest) = &items[i + 1] {
+                            rest_param = Some(rest.clone());
+                            break;
+                        } else {
+                            return Err(EvalError::runtime_error("parse-params", "Rest parameter must be a symbol"));
+                        }
+                    }
+                    Value::Symbol(s) => {
+                        params.push(s.clone());
+                    }
+                    _ => {
+                        return Err(EvalError::runtime_error("parse-params", "Parameter must be a symbol"));
+                    }
+                }
+                i += 1;
+            }
+
+            Ok((params, rest_param))
+        }
+        _ => Err(EvalError::runtime_error("parse-params", "Parameters must be a list"))
+    }
+}
+
 /// Main evaluation function with tail call optimization
 #[allow(dead_code)]
 pub fn eval(expr: Value, env: Rc<Environment>) -> Result<Value, EvalError> {
@@ -154,13 +197,15 @@ pub fn eval_with_macros(
                         match func {
                             Value::Lambda {
                                 params,
+                                rest_param,
                                 body,
                                 env: lambda_env,
                                 docstring: _,
                             } => {
-                                // Check arity
-                                if params.len() != args.len() {
-                                    // Get lambda name if available (from define)
+                                // Check arity with rest parameter support
+                                let min_args = params.len();
+                                if rest_param.is_none() && args.len() != min_args {
+                                    // No rest param - exact arity required
                                     let name = match &items[0] {
                                         Value::Symbol(s) => s.as_str(),
                                         _ => "<lambda>",
@@ -170,12 +215,31 @@ pub fn eval_with_macros(
                                         params.len().to_string(),
                                         args.len(),
                                     ));
+                                } else if rest_param.is_some() && args.len() < min_args {
+                                    // Rest param - minimum arity required
+                                    let name = match &items[0] {
+                                        Value::Symbol(s) => s.as_str(),
+                                        _ => "<lambda>",
+                                    };
+                                    return Err(EvalError::arity_error(
+                                        name,
+                                        format!("at least {}", min_args),
+                                        args.len(),
+                                    ));
                                 }
 
                                 // Create new environment for lambda
                                 let new_env = Environment::with_parent(lambda_env);
+
+                                // Bind fixed parameters
                                 for (param, arg) in params.iter().zip(args.iter()) {
                                     new_env.define(param.clone(), arg.clone());
+                                }
+
+                                // Bind rest parameter if present
+                                if let Some(rest) = rest_param {
+                                    let rest_args = args[params.len()..].to_vec();
+                                    new_env.define(rest, Value::List(rest_args));
                                 }
 
                                 // Tail call: set up for next iteration
@@ -224,7 +288,7 @@ fn eval_define(
             Ok(Value::Symbol(name.clone()))
         }
 
-        // Function definition: (define (f x y) body)
+        // Function definition: (define (f x y) body) or (define (f x . rest) body)
         Value::List(func_def) if !func_def.is_empty() => {
             // Extract function name
             let name = match &func_def[0] {
@@ -237,19 +301,9 @@ fn eval_define(
                 }
             };
 
-            // Extract parameters
-            let mut params = Vec::new();
-            for param in &func_def[1..] {
-                match param {
-                    Value::Symbol(p) => params.push(p.clone()),
-                    _ => {
-                        return Err(EvalError::runtime_error(
-                            "define",
-                            "function parameters must be symbols",
-                        ));
-                    }
-                }
-            }
+            // Extract parameters using parse_params
+            let param_list = Value::List(func_def[1..].to_vec());
+            let (params, rest_param) = parse_params(&param_list)?;
 
             // Extract docstring if present: (define (f x) "doc" body)
             let (inline_docstring, body) = match &args[1] {
@@ -269,7 +323,11 @@ fn eval_define(
             // Register help entry if we have documentation (unless we're loading stdlib)
             if let Some(ref doc) = docstring {
                 if !parser::should_skip_help_registration() {
-                    let signature = format!("({} {})", name, params.join(" "));
+                    let signature = if let Some(ref rest) = rest_param {
+                        format!("({} {} . {})", name, params.join(" "), rest)
+                    } else {
+                        format!("({} {})", name, params.join(" "))
+                    };
                     crate::help::register_help(crate::help::HelpEntry {
                         name: name.clone(),
                         signature,
@@ -284,6 +342,7 @@ fn eval_define(
             // Create lambda
             let lambda = Value::Lambda {
                 params,
+                rest_param,
                 body,
                 env: env.clone(),
                 docstring,
@@ -303,38 +362,19 @@ fn eval_define(
 
 /// Evaluate a lambda expression
 /// (lambda (x y z) body) or (lambda (x y z) "docstring" body)
+/// Also supports rest parameters: (lambda (x y . rest) body)
 fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::arity_error("lambda", "at least 2", args.len()));
     }
 
-    // Extract parameters from args[0]
-    let params = match &args[0] {
-        Value::List(param_list) => {
-            let mut params = Vec::new();
-            for param in param_list {
-                match param {
-                    Value::Symbol(name) => params.push(name.clone()),
-                    _ => {
-                        return Err(EvalError::runtime_error(
-                            "lambda",
-                            "parameters must be symbols",
-                        ));
-                    }
-                }
-            }
-            params
-        }
+    // Extract parameters from args[0] using parse_params
+    let (params, rest_param) = match &args[0] {
         Value::Nil => {
             // Empty parameter list () is parsed as Nil
-            Vec::new()
+            (Vec::new(), None)
         }
-        _ => {
-            return Err(EvalError::runtime_error(
-                "lambda",
-                "parameters must be a list",
-            ));
-        }
+        param_list => parse_params(param_list)?,
     };
 
     // Extract docstring if present: (lambda (x y) "doc" body)
@@ -345,6 +385,7 @@ fn eval_lambda(args: &[Value], env: Rc<Environment>) -> Result<Value, EvalError>
 
     Ok(Value::Lambda {
         params,
+        rest_param,
         body,
         env,
         docstring,
@@ -526,24 +567,7 @@ fn eval_defmacro(
         }
     };
 
-    let params = match &args[1] {
-        Value::List(p) => p
-            .iter()
-            .map(|v| match v {
-                Value::Symbol(s) => Ok(s.clone()),
-                _ => Err(EvalError::runtime_error(
-                    "defmacro",
-                    "parameter must be symbol",
-                )),
-            })
-            .collect::<Result<Vec<_>, _>>()?,
-        _ => {
-            return Err(EvalError::runtime_error(
-                "defmacro",
-                "params must be a list",
-            ))
-        }
-    };
+    let (params, rest_param) = parse_params(&args[1])?;
 
     // Body is the remaining args, wrapped in begin if multiple
     let body = if args.len() > 3 {
@@ -554,7 +578,7 @@ fn eval_defmacro(
         args[2].clone()
     };
 
-    macro_reg.define(name.clone(), params, body);
+    macro_reg.define(name.clone(), params, rest_param, body);
     Ok(Value::Symbol(name))
 }
 
@@ -568,11 +592,21 @@ fn expand_macros(
         Value::List(ref items) if !items.is_empty() => {
             match &items[0] {
                 Value::Symbol(name) => {
-                    if let Some((params, body)) = macro_reg.get(name) {
+                    if let Some((params, rest_param, body)) = macro_reg.get(name) {
                         // Bind arguments to parameters
                         let args = &items[1..];
 
-                        if params.len() != args.len() {
+                        // Check arity: with rest param, need at least fixed params
+                        if args.len() < params.len() {
+                            return Err(EvalError::arity_error(
+                                name,
+                                format!("at least {}", params.len()),
+                                args.len(),
+                            ));
+                        }
+
+                        // Without rest param, must match exactly
+                        if rest_param.is_none() && args.len() > params.len() {
                             return Err(EvalError::arity_error(
                                 name,
                                 params.len().to_string(),
@@ -581,9 +615,17 @@ fn expand_macros(
                         }
 
                         let macro_env = Environment::with_parent(env.clone());
+
+                        // Bind fixed params
                         for (param, arg) in params.iter().zip(args.iter()) {
                             // Arguments to macros are NOT evaluated yet
                             macro_env.define(param.clone(), arg.clone());
+                        }
+
+                        // Bind rest params if present
+                        if let Some(rest_name) = rest_param {
+                            let rest_args: Vec<Value> = args[params.len()..].to_vec();
+                            macro_env.define(rest_name, Value::List(rest_args));
                         }
 
                         // Evaluate body in macro environment (this handles quasiquote expansion)

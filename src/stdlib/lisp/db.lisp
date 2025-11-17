@@ -228,7 +228,7 @@
     (define first-row (db:first result))
     (if (nil? first-row)
         0
-        (map-get first-row :count)))
+        (map-get first-row :count))))
 
 ;;; Transaction management
 
@@ -285,4 +285,56 @@ either all operations succeed or all are rolled back."
 **Notes:** Discards all changes made since db:begin. Use when an error occurs or you want to abort."
   (db:exec conn "ROLLBACK" '()))
 
-)
+;;; Convenience macros
+
+(defmacro with-db (binding . body)
+  "Execute body with automatic connection cleanup.
+
+**Parameters:**
+- binding: (conn-var spec) where conn-var is the variable name and spec is the connection spec
+- body: Expressions to execute with the connection
+
+**Returns:** Result of the last expression in body
+
+**Examples:**
+- (with-db (conn (sqlite:spec \"users.db\"))
+    (db:query conn \"SELECT * FROM users\" '())
+    (db:insert conn \"users\" {:id 1 :name \"Alice\"}))
+  ; Connection automatically closed after body
+
+**Notes:** Ensures db:close is called even if body completes normally.
+Recommended pattern for all database operations to prevent resource leaks."
+  `(begin
+     (define ,(car binding) (db:connect ,(car (cdr binding))))
+     (define __db_result (begin ,@body))
+     (db:close ,(car binding))
+     __db_result))
+
+(defmacro with-transaction (conn . body)
+  "Execute body within a transaction with automatic commit/rollback.
+
+**Parameters:**
+- conn: Database connection variable
+- body: Expressions to execute within the transaction
+
+**Returns:** Result of the last expression in body
+
+**Examples:**
+- (with-db (conn (sqlite:spec \"users.db\"))
+    (with-transaction conn
+      (db:insert conn \"users\" {:id 1 :name \"Alice\"})
+      (db:insert conn \"orders\" {:user_id 1 :item \"Widget\"})))
+  ; Both inserts committed atomically, or both rolled back on error
+
+**Notes:** Automatically commits if body succeeds, rolls back if body produces an error.
+Can be nested with with-db for complete resource safety."
+  `(begin
+     (db:begin ,conn)
+     (define __tx_result (begin ,@body))
+     (if (error? __tx_result)
+         (begin
+           (db:rollback ,conn)
+           __tx_result)
+         (begin
+           (db:commit ,conn)
+           __tx_result))))

@@ -96,13 +96,17 @@ fn get_lisp_function_help(name: &str) -> Option<HelpEntry> {
             if let Some(val) = env.get(name) {
                 match val {
                     Value::Lambda {
-                        params, docstring, ..
+                        params, rest_param, docstring, ..
                     } => {
                         // Build signature from parameters
                         let mut sig = format!("({}", name);
-                        for param in &params {
+                        for param in params {
                             sig.push(' ');
-                            sig.push_str(param);
+                            sig.push_str(&param);
+                        }
+                        if let Some(rest) = rest_param {
+                            sig.push_str(" . ");
+                            sig.push_str(&rest);
                         }
                         sig.push(')');
 
@@ -115,12 +119,16 @@ fn get_lisp_function_help(name: &str) -> Option<HelpEntry> {
                             category: "User-defined".to_string(),
                         });
                     }
-                    Value::Macro { params, .. } => {
+                    Value::Macro { params, rest_param, .. } => {
                         // Build signature from parameters
                         let mut sig = format!("({}", name);
-                        for param in &params {
+                        for param in params {
                             sig.push(' ');
-                            sig.push_str(param);
+                            sig.push_str(&param);
+                        }
+                        if let Some(rest) = rest_param {
+                            sig.push_str(" . ");
+                            sig.push_str(&rest);
                         }
                         sig.push(')');
 
@@ -335,6 +343,7 @@ mod tests {
         let env = Rc::new(Environment::new());
         let user_sum = Value::Lambda {
             params: vec!["x".to_string(), "y".to_string()],
+            rest_param: None,
             body: Box::new(Value::Symbol("+".to_string())),
             env: Rc::clone(&env),
             docstring: Some("Add two numbers together".to_string()),

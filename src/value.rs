@@ -18,12 +18,14 @@ pub enum Value {
     Map(HashMap<String, Value>), // Key-value maps
     Lambda {
         params: Vec<String>,
+        rest_param: Option<String>,
         body: Box<Value>,
         env: Rc<Environment>,
         docstring: Option<String>,
     },
     Macro {
         params: Vec<String>,
+        rest_param: Option<String>,
         body: Box<Value>,
     },
     BuiltIn(fn(&[Value]) -> Result<Value, EvalError>),
